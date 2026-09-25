@@ -87,18 +87,20 @@ class hook_callbacks {
         $trackerhtml = '';
         if ($cycle->status === 'open') {
             $required = config::required_seconds();
+            // Moodle's format_time(0) returns "now", which reads wrongly in a duration.
+            $duration = fn(int $seconds) => $seconds > 0 ? format_time($seconds) : get_string('numminutes', 'moodle', 0);
             if (config::time_policy() === config::POLICY_UNRESOLVED) {
                 $timeline = get_string(
                     'banner_time_unresolved',
                     config::COMPONENT,
-                    format_time(time_tracker::recorded_seconds($cycle))
+                    $duration(time_tracker::recorded_seconds($cycle))
                 );
             } else {
                 $approved = time_tracker::approved_seconds($cycle);
                 $timeline = get_string('banner_time', config::COMPONENT, (object) [
-                    'approved' => format_time($approved) ?: '0',
-                    'required' => format_time($required),
-                    'remaining' => format_time(max(0, $required - $approved)) ?: '0',
+                    'approved' => $duration($approved),
+                    'required' => $duration($required),
+                    'remaining' => $duration(max(0, $required - $approved)),
                 ]);
             }
             $trackerhtml = \html_writer::div(s($timeline), 'local-cgt-time', ['data-region' => 'local-cgt-time'])
