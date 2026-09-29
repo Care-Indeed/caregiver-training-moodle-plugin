@@ -47,7 +47,6 @@ $string['banner_daysremaining'] = '{$a} days remaining';
 $string['banner_due'] = 'Due {$a}';
 $string['banner_overdue'] = 'Overdue by {$a} day(s). The course remains open.';
 $string['banner_percent'] = 'About {$a}%';
-$string['banner_progress'] = 'Progress:';
 $string['banner_scheduled'] = 'Opens on {$a}';
 $string['banner_time'] = '{$a->approved} completed of {$a->required} · {$a->remaining} remaining';
 $string['banner_time_unresolved'] = 'Recorded activity time: {$a}. HR has not yet approved how the five hours are counted, so this time is not final and completion is on hold.';

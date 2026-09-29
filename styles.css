@@ -17,9 +17,22 @@ body:not(.jsenabled) #page-wrapper > .local-cgt-banner ~ #page.drawers,
     margin-top: 0;
 }
 
-/* Scoped so it beats Bootstrap's .progress, which loads after plugin styles. */
-.local-cgt-banner .local-cgt-progress {
-    height: 0.6rem;
+/*
+ * Clock-face pie in place of the clock icon: an outlined circle with the filled share inset inside it.
+ * The share comes from the --local-cgt-percent custom property (0-100).
+ */
+.local-cgt-banner .local-cgt-pie {
+    flex-shrink: 0;
+    box-sizing: border-box;
+    width: 1.25rem;
+    height: 1.25rem;
+    margin-right: 0.5rem;
+    padding: 0.1rem;
+    border: 0.1rem solid var(--bs-primary, #0f6cbf);
+    border-radius: 50%;
+    background:
+        conic-gradient(var(--bs-primary, #0f6cbf) calc(var(--local-cgt-percent, 0) * 1%), transparent 0) content-box,
+        var(--bs-body-bg, #fff);
 }
 
 /* Line up with Boost's div[role="main"] padding. */

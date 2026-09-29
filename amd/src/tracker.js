@@ -82,12 +82,12 @@ export const init = ({cmid, interval}) => {
                 // Server-built from language strings, with every value escaped.
                 line.innerHTML = result.timeline;
             }
-            const bar = document.querySelector('[data-region="local-cgt-progress"]');
+            const pie = document.querySelector('[data-region="local-cgt-progress"]');
             const percent = document.querySelector('[data-region="local-cgt-percent"]');
-            if (bar && percent && result.progresstext) {
-                bar.setAttribute('aria-valuenow', result.progresspercent);
-                bar.setAttribute('aria-label', result.progresstext);
-                bar.firstElementChild.style.width = `${result.progresspercent}%`;
+            if (pie && percent && result.progresstext) {
+                pie.setAttribute('aria-valuenow', result.progresspercent);
+                pie.setAttribute('aria-label', result.progresstext);
+                pie.style.setProperty('--local-cgt-percent', result.progresspercent);
                 percent.textContent = result.progresstext;
             }
             return result;

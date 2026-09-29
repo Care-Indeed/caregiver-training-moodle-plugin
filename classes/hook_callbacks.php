@@ -76,27 +76,25 @@ class hook_callbacks {
 
         $html = $row('i/calendar', \html_writer::span(implode(' · ', $lines)));
         if ($cycle->status === 'open') {
-            $html .= $row('i/calendareventtime', \html_writer::span(
-                time_tracker::timeline($cycle),
-                '',
-                ['data-region' => 'local-cgt-time']
-            ));
-            if (config::time_policy() !== config::POLICY_UNRESOLVED) {
+            $time = \html_writer::span(time_tracker::timeline($cycle), '', ['data-region' => 'local-cgt-time']);
+            if (config::time_policy() === config::POLICY_UNRESOLVED) {
+                $html .= $row('i/calendareventtime', $time);
+            } else {
                 $percent = time_tracker::percent($cycle);
                 $percenttext = get_string('banner_percent', config::COMPONENT, $percent);
-                $bar = \html_writer::div(
-                    \html_writer::div('', 'progress-bar', ['style' => "width: {$percent}%"]),
-                    'local-cgt-progress progress flex-grow-1',
-                    ['role' => 'progressbar', 'aria-valuenow' => $percent, 'aria-valuemin' => 0, 'aria-valuemax' => 100,
-                        'aria-label' => $percenttext, 'data-region' => 'local-cgt-progress']
-                );
-                $percentlabel = \html_writer::tag('strong', s($percenttext), [
-                    'class' => 'flex-shrink-0',
-                    'data-region' => 'local-cgt-percent',
+                $pie = \html_writer::span('', 'local-cgt-pie', [
+                    'style' => "--local-cgt-percent: {$percent}",
+                    'role' => 'progressbar',
+                    'aria-valuenow' => $percent,
+                    'aria-valuemin' => 0,
+                    'aria-valuemax' => 100,
+                    'aria-label' => $percenttext,
+                    'data-region' => 'local-cgt-progress',
                 ]);
+                $percentlabel = \html_writer::tag('strong', s($percenttext), ['data-region' => 'local-cgt-percent']);
                 $html .= \html_writer::div(
-                    \html_writer::span(get_string('banner_progress', config::COMPONENT), 'flex-shrink-0') . $bar . $percentlabel,
-                    'd-flex align-items-center gap-2 mt-2'
+                    $pie . \html_writer::span($time . ' · ' . $percentlabel),
+                    'd-flex align-items-center'
                 );
             }
 
