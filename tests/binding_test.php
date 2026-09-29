@@ -159,9 +159,28 @@ final class binding_test extends \advanced_testcase {
 
         binding_manager::provision($this->payload(['alayacareid' => '4004', 'externalid' => 'EXT-4004', 'payrollid' => 'PR-4004',
             'email' => 'dana@example.com']));
-        $this->assertSame('bound', binding_manager::lookup(['alayacareid' => '1001'])['status']);
+        $lookup = binding_manager::lookup(['alayacareid' => '1001']);
+        $this->assertSame('bound', $lookup['status']);
+        $this->assertSame('HCA-1', $lookup['bindings'][0]['hcanumber']);
+        $this->assertSame('2025-06-30', $lookup['bindings'][0]['registrationdate']);
         $this->assertSame('conflict', binding_manager::lookup(['alayacareid' => '1001', 'payrollid' => 'PR-4004'])['status']);
         $this->assertSame('none', binding_manager::lookup(['alayacareid' => '9999'])['status']);
+    }
+
+    public function test_user_fields_query_reads_employment_profile(): void {
+        global $DB;
+        $created = binding_manager::provision($this->payload());
+        $fields = profile_fields::user_fields()->get_sql('u', true);
+        $record = $DB->get_record_sql(
+            "SELECT u.id {$fields->selects} FROM {user} u {$fields->joins} WHERE u.id = :userid",
+            $fields->params + ['userid' => $created['userid']]
+        );
+        $values = profile_fields::values_from_record($record);
+        $this->assertSame('EXT-1001', $values['externalid']);
+        $this->assertSame('PR-1001', $values['payrollid']);
+        $this->assertSame('HCA-1', $values['hcanumber']);
+        $this->assertSame('2025-06-30', $values['registrationdate']);
+        $this->assertSame($values['registrationdate'], profile_fields::load((int) $created['userid'])[profile_fields::REGISTRATIONDATE]);
     }
 
     public function test_not_found_without_create_flag(): void {

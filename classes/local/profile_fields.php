@@ -146,4 +146,52 @@ class profile_fields {
         $result[self::REGISTRATIONDATE] = $date ? gmdate('Y-m-d', $date) : null;
         return $result;
     }
+
+    /**
+     * Names accepted by {@see \core_user\fields::including()}.
+     *
+     * @return string[]
+     */
+    public static function query_names(): array {
+        return array_map(
+            fn(string $shortname): string => \core_user\fields::PROFILE_FIELD_PREFIX . $shortname,
+            array_keys(self::definitions())
+        );
+    }
+
+    /**
+     * Name fields plus the caregiver employment profile fields.
+     *
+     * @return \core_user\fields
+     */
+    public static function user_fields(): \core_user\fields {
+        return \core_user\fields::for_name()->including(...self::query_names());
+    }
+
+    /**
+     * Employment values from a row selected with {@see user_fields()}.
+     *
+     * The registration date is YYYY-MM-DD. Text fields are trimmed. Missing values are empty strings.
+     *
+     * @param \stdClass $record
+     * @return array{externalid: string, payrollid: string, hcanumber: string, registrationdate: string}
+     */
+    public static function values_from_record(\stdClass $record): array {
+        $text = function (string $shortname) use ($record): string {
+            $property = \core_user\fields::PROFILE_FIELD_PREFIX . $shortname;
+            return trim((string) ($record->{$property} ?? ''));
+        };
+        $rawdate = $text(self::REGISTRATIONDATE);
+        $registrationdate = '';
+        if ($rawdate !== '' && is_numeric($rawdate)) {
+            $timestamp = (int) $rawdate;
+            $registrationdate = $timestamp > 0 ? gmdate('Y-m-d', $timestamp) : '';
+        }
+        return [
+            'externalid' => $text(self::EXTERNALID),
+            'payrollid' => $text(self::PAYROLLID),
+            'hcanumber' => $text(self::HCANUMBER),
+            'registrationdate' => $registrationdate,
+        ];
+    }
 }

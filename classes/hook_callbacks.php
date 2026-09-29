@@ -18,10 +18,11 @@ namespace local_caregivertraining;
 
 use local_caregivertraining\local\config;
 use local_caregivertraining\local\cycle_manager;
+use local_caregivertraining\local\next_activity;
 use local_caregivertraining\local\time_tracker;
 
 /**
- * Adds the learner banner (due date, time, next activity) and the time tracker to annual course pages.
+ * Adds the learner banner (due date, time), the Next activity button and the time tracker to annual course pages.
  *
  * @package    local_caregivertraining
  * @copyright  2026 CI Institute of Nursing
@@ -36,75 +37,68 @@ class hook_callbacks {
     public static function before_standard_top_of_body_html_generation(
         \core\hook\output\before_standard_top_of_body_html_generation $hook
     ): void {
-        global $DB, $PAGE, $USER;
+        global $OUTPUT, $PAGE;
 
-        if (during_initial_install() || !isloggedin() || isguestuser()) {
-            return;
-        }
-        $courseid = config::course_id();
-        if (!$courseid || empty($PAGE->course->id) || (int) $PAGE->course->id !== $courseid) {
-            return;
-        }
-        $cycles = $DB->get_records_select(
-            'local_cgt_cycle',
-            "userid = :u AND courseid = :c AND status IN ('scheduled', 'open', 'completed', 'blocked') AND archived = 0",
-            ['u' => $USER->id, 'c' => $courseid],
-            'timedue DESC',
-            '*',
-            0,
-            1
-        );
-        $cycle = reset($cycles);
+        $cycle = self::current_cycle();
         if (!$cycle) {
             return;
         }
+        $courseid = (int) $cycle->courseid;
 
         $tz = config::timezone()->getName();
-        $fmt = get_string('strftimedatefullshort', 'langconfig');
+        $fmt = get_string('strftimedue', config::COMPONENT);
         $datestr = fn(string $date) => userdate(cycle_manager::start_of_day($date) + 12 * HOURSECS, $fmt, $tz);
+        $bold = fn(string $text) => \html_writer::tag('strong', s($text));
         $lines = [];
         $now = time();
         switch ($cycle->status) {
             case 'scheduled':
-                $lines[] = get_string('banner_scheduled', config::COMPONENT, $datestr($cycle->opendate));
+                $lines[] = get_string('banner_scheduled', config::COMPONENT, $bold($datestr($cycle->opendate)));
                 break;
             case 'completed':
-                $lines[] = get_string('banner_complete', config::COMPONENT, userdate($cycle->timecompleted, $fmt, $tz));
+                $lines[] = get_string('banner_complete', config::COMPONENT, $bold(userdate($cycle->timecompleted, $fmt, $tz)));
                 break;
             default:
-                $lines[] = get_string('banner_due', config::COMPONENT, $datestr($cycle->duedate));
+                $lines[] = get_string('banner_due', config::COMPONENT, $bold($datestr($cycle->duedate)));
                 if ($now <= $cycle->timedue) {
-                    $lines[] = get_string(
-                        'banner_daysremaining',
-                        config::COMPONENT,
-                        (int) floor(($cycle->timedue - $now) / DAYSECS)
-                    );
+                    $days = (int) floor(($cycle->timedue - $now) / DAYSECS);
+                    $key = $days === 1 ? 'banner_dayremaining' : 'banner_daysremaining';
+                    $lines[] = $bold(get_string($key, config::COMPONENT, $days));
                 } else {
-                    $lines[] = get_string('banner_overdue', config::COMPONENT, (int) ceil(($now - $cycle->timedue) / DAYSECS));
+                    $days = (int) ceil(($now - $cycle->timedue) / DAYSECS);
+                    $lines[] = $bold(get_string('banner_overdue', config::COMPONENT, $days));
                 }
         }
+        $row = fn(string $icon, string $html) => \html_writer::div(
+            $OUTPUT->pix_icon($icon, '') . $html,
+            'd-flex align-items-center'
+        );
 
-        $trackerhtml = '';
+        $html = $row('i/calendar', \html_writer::span(implode(' · ', $lines)));
         if ($cycle->status === 'open') {
-            $required = config::required_seconds();
-            // Moodle's format_time(0) returns "now", which reads wrongly in a duration.
-            $duration = fn(int $seconds) => $seconds > 0 ? format_time($seconds) : get_string('numminutes', 'moodle', 0);
-            if (config::time_policy() === config::POLICY_UNRESOLVED) {
-                $timeline = get_string(
-                    'banner_time_unresolved',
-                    config::COMPONENT,
-                    $duration(time_tracker::recorded_seconds($cycle))
+            $html .= $row('i/calendareventtime', \html_writer::span(
+                time_tracker::timeline($cycle),
+                '',
+                ['data-region' => 'local-cgt-time']
+            ));
+            if (config::time_policy() !== config::POLICY_UNRESOLVED) {
+                $percent = time_tracker::percent($cycle);
+                $percenttext = get_string('banner_percent', config::COMPONENT, $percent);
+                $bar = \html_writer::div(
+                    \html_writer::div('', 'progress-bar', ['style' => "width: {$percent}%"]),
+                    'local-cgt-progress progress flex-grow-1',
+                    ['role' => 'progressbar', 'aria-valuenow' => $percent, 'aria-valuemin' => 0, 'aria-valuemax' => 100,
+                        'aria-label' => $percenttext, 'data-region' => 'local-cgt-progress']
                 );
-            } else {
-                $approved = time_tracker::approved_seconds($cycle);
-                $timeline = get_string('banner_time', config::COMPONENT, (object) [
-                    'approved' => $duration($approved),
-                    'required' => $duration($required),
-                    'remaining' => $duration(max(0, $required - $approved)),
+                $percentlabel = \html_writer::tag('strong', s($percenttext), [
+                    'class' => 'flex-shrink-0',
+                    'data-region' => 'local-cgt-percent',
                 ]);
+                $html .= \html_writer::div(
+                    \html_writer::span(get_string('banner_progress', config::COMPONENT), 'flex-shrink-0') . $bar . $percentlabel,
+                    'd-flex align-items-center gap-2 mt-2'
+                );
             }
-            $trackerhtml = \html_writer::div(s($timeline), 'local-cgt-time', ['data-region' => 'local-cgt-time'])
-                . \html_writer::div(get_string('banner_time_note', config::COMPONENT), 'small text-muted');
 
             $cm = $PAGE->cm;
             if ($cm && has_capability('local/caregivertraining:recordtime', \context_course::instance($courseid))) {
@@ -116,21 +110,72 @@ class hook_callbacks {
             }
         }
 
-        $next = '';
-        if (in_array($cycle->status, ['open', 'completed'], true)) {
-            $next = \html_writer::link(
-                new \moodle_url('/local/caregivertraining/next.php', ['courseid' => $courseid]),
-                get_string('nextactivity', config::COMPONENT),
-                ['class' => 'btn btn-primary btn-sm mt-2']
-            );
+        $hook->add_html(\html_writer::div($html, 'local-cgt-banner bg-light rounded p-3 mb-3', [
+            'role' => 'status',
+            'aria-label' => get_string('banner_title', config::COMPONENT),
+        ]));
+        $PAGE->requires->js_call_amd('local_caregivertraining/banner', 'init');
+    }
+
+    /**
+     * Render the Next activity button below the page's main content.
+     *
+     * @param \core\hook\output\before_footer_html_generation $hook
+     */
+    public static function before_footer_html_generation(\core\hook\output\before_footer_html_generation $hook): void {
+        global $PAGE, $USER;
+
+        $cycle = self::current_cycle();
+        if (!$cycle || !in_array($cycle->status, ['open', 'completed'], true)) {
+            return;
+        }
+        if (!in_array($PAGE->pagelayout, ['course', 'incourse'], true)
+                || in_array($PAGE->pagetype, ['mod-quiz-attempt', 'mod-quiz-summary'], true)) {
+            return;
         }
 
-        $html = \html_writer::tag('strong', get_string('banner_title', config::COMPONENT)) . ' '
-            . implode(' &middot; ', array_map('s', $lines)) . $trackerhtml . $next;
-        $hook->add_html(\html_writer::div(
-            \html_writer::div($html, 'container-fluid py-2'),
-            'local-cgt-banner alert alert-info mb-0 rounded-0',
-            ['role' => 'status']
-        ));
+        $courseid = (int) $cycle->courseid;
+        $aftercmid = $PAGE->cm ? (int) $PAGE->cm->id : 0;
+        if (next_activity::find(get_course($courseid), (int) $USER->id, $aftercmid)) {
+            $params = ['courseid' => $courseid] + ($aftercmid ? ['cmid' => $aftercmid] : []);
+            $content = \html_writer::link(
+                new \moodle_url('/local/caregivertraining/next.php', $params),
+                get_string('nextactivity', config::COMPONENT),
+                ['class' => 'btn btn-primary']
+            );
+        } else {
+            $content = \html_writer::span(
+                get_string($aftercmid ? 'nextactivity_locked' : 'nonextactivity', config::COMPONENT),
+                'text-muted'
+            );
+        }
+        $hook->add_html(\html_writer::div($content, 'local-cgt-next d-flex justify-content-end mt-4'));
+    }
+
+    /**
+     * The learner's current cycle when the page belongs to the configured annual course.
+     *
+     * @return \stdClass|null
+     */
+    private static function current_cycle(): ?\stdClass {
+        global $DB, $PAGE, $USER;
+
+        if (during_initial_install() || !isloggedin() || isguestuser()) {
+            return null;
+        }
+        $courseid = config::course_id();
+        if (!$courseid || empty($PAGE->course->id) || (int) $PAGE->course->id !== $courseid) {
+            return null;
+        }
+        $cycles = $DB->get_records_select(
+            'local_cgt_cycle',
+            "userid = :u AND courseid = :c AND status IN ('scheduled', 'open', 'completed', 'blocked') AND archived = 0",
+            ['u' => $USER->id, 'c' => $courseid],
+            'timedue DESC',
+            '*',
+            0,
+            1
+        );
+        return reset($cycles) ?: null;
     }
 }

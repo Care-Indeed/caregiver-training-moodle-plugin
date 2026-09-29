@@ -27,6 +27,7 @@ require_once($CFG->libdir . '/adminlib.php');
 
 use local_caregivertraining\local\admin_actions;
 use local_caregivertraining\local\cycle_manager;
+use local_caregivertraining\local\profile_fields;
 
 $tab = optional_param('tab', 'exceptions', PARAM_ALPHA);
 $showarchived = optional_param('showarchived', 0, PARAM_BOOL);
@@ -90,11 +91,12 @@ if ($canexport) {
 $archivedsql = $showarchived ? '' : ' AND c.archived = 0';
 $table = new html_table();
 $table->attributes['class'] = 'generaltable';
-$userfields = \core_user\fields::for_name()->get_sql('u', true);
+$userfields = profile_fields::user_fields()->get_sql('u', true);
 $cyclesql = "SELECT c.*, b.alayacareid, b.payrollid {$userfields->selects}
                FROM {local_cgt_cycle} c
                JOIN {local_cgt_binding} b ON b.id = c.bindingid
-               JOIN {user} u ON u.id = c.userid";
+               JOIN {user} u ON u.id = c.userid
+               {$userfields->joins}";
 
 switch ($tab) {
     case 'blocked':
@@ -115,7 +117,9 @@ switch ($tab) {
 
     case 'cycles':
         $table->head = [get_string('col_employee', $component), get_string('col_alayacareid', $component),
-            get_string('col_payrollid', $component), get_string('col_cycleid', $component), get_string('col_status', $component),
+            get_string('field_externalid', $component), get_string('field_payrollid', $component),
+            get_string('field_hcanumber', $component), get_string('field_registrationdate', $component),
+            get_string('col_cycleid', $component), get_string('col_status', $component),
             get_string('col_compliance', $component), get_string('col_open', $component), get_string('col_due', $component),
             get_string('col_completed', $component), get_string('col_time', $component),
             get_string('col_certificate', $component), get_string('col_actions', $component)];
@@ -123,9 +127,11 @@ switch ($tab) {
             ORDER BY c.timedue ASC", $userfields->params, 0, 500);
         foreach ($records as $r) {
             $compliance = cycle_manager::compliance($r);
+            $employment = profile_fields::values_from_record($r);
             $actions = ($canmanage && $r->status === 'completed' && !$r->archived)
                 ? $actionbutton('archive', (int) $r->id, get_string('archivecycle', $component)) : '';
-            $table->data[] = [fullname($r), s($r->alayacareid), s($r->payrollid), s($r->cycleid), s($r->status),
+            $table->data[] = [fullname($r), s($r->alayacareid), s($employment['externalid']), s($employment['payrollid']),
+                s($employment['hcanumber']), s($employment['registrationdate']), s($r->cycleid), s($r->status),
                 get_string('compliance_' . $compliance, $component), s($r->opendate), s($r->duedate), $fmt($r->timecompleted),
                 format_time((int) $r->approvedseconds), s($r->certificatecode), $actions];
         }
@@ -140,6 +146,7 @@ switch ($tab) {
               FROM {local_cgt_snapshot} s
               JOIN {local_cgt_cycle} c ON c.id = s.cycleid
               JOIN {user} u ON u.id = s.userid
+              {$userfields->joins}
              WHERE 1 = 1 {$archivedsql}
           ORDER BY s.timecreated DESC", $userfields->params, 0, 500);
         foreach ($records as $r) {

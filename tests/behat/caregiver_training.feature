@@ -12,8 +12,7 @@ Feature: Caregiver annual training learner experience and administrator view
   Scenario: Learner sees the due date, unresolved time policy and a next activity action
     Given I log in as "cg1"
     And I am on "Synthetic annual caregiver training" course homepage
-    Then I should see "Due on or before"
-    And I should see "30 day(s) remaining"
+    Then I should see "30 days remaining"
     And I should see "completion is on hold"
     And I click on "Next activity" "link"
     Then I should see "Lesson"

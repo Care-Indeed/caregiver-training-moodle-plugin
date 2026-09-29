@@ -120,10 +120,28 @@ final class time_tracker_test extends \advanced_testcase {
         $this->assertSame(60, $this->credited());
     }
 
+    public function test_moving_to_the_next_page_keeps_the_time_on_the_previous_page(): void {
+        $this->beat(0, 'a');
+        $this->assertSame(30, $this->beat(30, 'a')['creditseconds']);
+        $this->assertSame(20, $this->beat(50, 'b')['creditseconds'], 'tail of the previous page is credited');
+        $this->assertSame(15, $this->beat(65, 'c')['creditseconds'], 'short pages still count');
+        $this->assertSame(30, $this->beat(95, 'c')['creditseconds']);
+        $this->assertSame(95, $this->credited());
+    }
+
+    public function test_page_change_after_hidden_idle_or_gap_earns_nothing(): void {
+        $this->beat(0, 'a');
+        $this->beat(30, 'a', ['visible' => false]);
+        $this->assertSame(0, $this->beat(40, 'b')['creditseconds'], 'previous page was hidden');
+        $this->assertSame(0, $this->beat(200, 'c')['creditseconds'], 'gap since the previous beat');
+        $this->assertSame(0, $this->beat(210, 'd', ['visible' => false])['creditseconds'], 'new page is hidden');
+        $this->assertSame(0, $this->beat(220, 'e')['creditseconds'], 'previous page started hidden');
+        $this->assertSame(0, $this->credited());
+    }
+
     public function test_concurrent_tabs_do_not_double_count(): void {
         $this->beat(0, 'a');
-        $this->beat(1, 'b');
-        $total = 0;
+        $total = $this->beat(1, 'b')['creditseconds'];
         for ($i = 1; $i <= 10; $i++) {
             $total += $this->beat($i * 30, 'a')['creditseconds'];
             $total += $this->beat($i * 30 + 1, 'b')['creditseconds'];
@@ -151,6 +169,25 @@ final class time_tracker_test extends \advanced_testcase {
         $this->assertSame('activity_unavailable', $this->beat(0, 'e')['reason']);
     }
 
+    public function test_banner_duration_and_percentage(): void {
+        $this->assertSame('0 mins', time_tracker::short_duration(0));
+        $this->assertSame('1 min', time_tracker::short_duration(119));
+        $this->assertSame('1 hr 1 min', time_tracker::short_duration(3665));
+        $this->assertSame('3 hrs 58 mins', time_tracker::short_duration(14335));
+        $this->assertSame('2 hrs', time_tracker::short_duration(7200));
+
+        set_config('timepolicy', config::POLICY_TRACKED, 'local_caregivertraining');
+        set_config('requiredseconds', 18000, 'local_caregivertraining');
+        $this->beat(0, 'a');
+        $this->beat(30, 'a');
+        $cycle = cycle_manager::get('T-1');
+        $this->assertSame(0, time_tracker::percent($cycle));
+        $this->assertSame(
+            '<strong>0 mins</strong> completed of <strong>5 hours</strong> · <strong>4 hrs 59 mins</strong> remaining',
+            time_tracker::timeline($cycle)
+        );
+    }
+
     public function test_policy_controls_what_is_approved(): void {
         $quizcm = (int) $this->fixture->quiz->cmid;
         $this->beat(0, 'a');
@@ -161,10 +198,10 @@ final class time_tracker_test extends \advanced_testcase {
 
         set_config('timepolicy', config::POLICY_UNRESOLVED, 'local_caregivertraining');
         $this->assertSame(0, time_tracker::approved_seconds($cycle));
-        $this->assertSame(60, time_tracker::recorded_seconds($cycle));
+        $this->assertSame(61, time_tracker::recorded_seconds($cycle));
 
         set_config('timepolicy', config::POLICY_TRACKED, 'local_caregivertraining');
-        $this->assertSame(30, time_tracker::approved_seconds($cycle), 'only countable activities count');
+        $this->assertSame(31, time_tracker::approved_seconds($cycle), 'only countable activities count (lesson incl. its tail)');
 
         set_config('countablecmids', '', 'local_caregivertraining');
         $this->assertSame(0, time_tracker::approved_seconds($cycle), 'nothing counts until HR approves activities');

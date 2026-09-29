@@ -30,18 +30,24 @@ class next_activity {
      *
      * @param \stdClass $course
      * @param int $userid
+     * @param int $aftercmid Only consider activities after this one in course order (0 = from the start)
      * @return \cm_info|null
      */
-    public static function find(\stdClass $course, int $userid): ?\cm_info {
+    public static function find(\stdClass $course, int $userid, int $aftercmid = 0): ?\cm_info {
         global $CFG;
         require_once($CFG->libdir . '/completionlib.php');
         $modinfo = get_fast_modinfo($course, $userid);
         $completion = new \completion_info($course);
+        $skipping = $aftercmid && isset($modinfo->cms[$aftercmid]);
         foreach ($modinfo->get_section_info_all() as $section) {
-            if (!$section->uservisible) {
-                continue;
-            }
             foreach ($modinfo->sections[$section->section] ?? [] as $cmid) {
+                if ($skipping) {
+                    $skipping = ($cmid != $aftercmid);
+                    continue;
+                }
+                if (!$section->uservisible) {
+                    continue;
+                }
                 $cm = $modinfo->cms[$cmid];
                 if (!$cm->uservisible || !$cm->available || !$cm->has_view() || $cm->deletioninprogress) {
                     continue;

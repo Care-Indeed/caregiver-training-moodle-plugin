@@ -21,6 +21,7 @@ use local_caregivertraining\local\completion_manager;
 use local_caregivertraining\local\config;
 use local_caregivertraining\local\cycle_manager;
 use local_caregivertraining\local\export;
+use local_caregivertraining\local\profile_fields;
 use local_caregivertraining\local\outbox;
 
 /**
@@ -99,6 +100,15 @@ final class export_outbox_test extends \advanced_testcase {
         $this->assertSame('complete', $completionrow[array_search('compliance', $columns)]);
         $this->assertSame(1, $completionrow[array_search('snapshotverified', $columns)]);
         $this->assertNotSame('', $completionrow[array_search('certificatecode', $columns)]);
+        $profile = profile_fields::load((int) $this->a->user->id);
+        $this->assertSame($profile[profile_fields::HCANUMBER], $completionrow[array_search('hcanumber', $columns)]);
+        $this->assertSame(
+            $profile[profile_fields::REGISTRATIONDATE],
+            $completionrow[array_search('registrationdate', $columns)]
+        );
+        $byhca = export::rows($profile[profile_fields::HCANUMBER]);
+        $this->assertNotEmpty($byhca);
+        $this->assertSame($this->a->alayacareid, $byhca[0][array_search('alayacareid', $columns)]);
 
         $bycycle = export::rows('B-2026');
         $this->assertCount(1, $bycycle);

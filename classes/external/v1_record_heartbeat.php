@@ -102,6 +102,9 @@ class v1_record_heartbeat extends external_api {
             'recordedseconds' => new external_value(PARAM_INT, 'All recorded seconds (not necessarily approved)'),
             'remainingseconds' => new external_value(PARAM_INT, 'Remaining approved seconds'),
             'intervalseconds' => new external_value(PARAM_INT, 'Heartbeat interval'),
+            'timeline' => new external_value(PARAM_RAW, 'Time line for the learner banner (server-built HTML, values escaped)'),
+            'progresspercent' => new external_value(PARAM_INT, 'Approved share of the required time, 0-100'),
+            'progresstext' => new external_value(PARAM_TEXT, 'Formatted percentage for the learner banner'),
         ]);
     }
 }

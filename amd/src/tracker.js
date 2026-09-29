@@ -77,6 +77,19 @@ export const init = ({cmid, interval}) => {
                 stopped = true;
                 window.clearInterval(timer);
             }
+            const line = document.querySelector('[data-region="local-cgt-time"]');
+            if (line && result.timeline) {
+                // Server-built from language strings, with every value escaped.
+                line.innerHTML = result.timeline;
+            }
+            const bar = document.querySelector('[data-region="local-cgt-progress"]');
+            const percent = document.querySelector('[data-region="local-cgt-percent"]');
+            if (bar && percent && result.progresstext) {
+                bar.setAttribute('aria-valuenow', result.progresspercent);
+                bar.setAttribute('aria-label', result.progresstext);
+                bar.firstElementChild.style.width = `${result.progresspercent}%`;
+                percent.textContent = result.progresstext;
+            }
             return result;
         }).catch(() => {
             // Network errors earn no credit; the next beat after a gap is rejected by the server.

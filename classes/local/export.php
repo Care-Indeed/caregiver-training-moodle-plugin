@@ -30,10 +30,10 @@ class export {
      * @return string[]
      */
     public static function columns(): array {
-        return ['alayacareid', 'externalid', 'payrollid', 'moodleuserid', 'fullname', 'cycleid', 'status', 'compliance',
-            'hiredate', 'opendate', 'duedate', 'timecompleted', 'approvedseconds', 'timepolicy', 'certificatecode',
-            'resetstate', 'archived', 'snapshotid', 'snapshottype', 'snapshotverified', 'snapshotsha256', 'snapshotcreated',
-            'snapshotretainuntil', 'snapshotcounts', 'certificatefiles'];
+        return ['alayacareid', 'externalid', 'payrollid', 'hcanumber', 'registrationdate', 'moodleuserid', 'fullname',
+            'cycleid', 'status', 'compliance', 'hiredate', 'opendate', 'duedate', 'timecompleted', 'approvedseconds',
+            'timepolicy', 'certificatecode', 'resetstate', 'archived', 'snapshotid', 'snapshottype', 'snapshotverified',
+            'snapshotsha256', 'snapshotcreated', 'snapshotretainuntil', 'snapshotcounts', 'certificatefiles'];
     }
 
     /**
@@ -54,19 +54,27 @@ class export {
                 OR c.certificatecode = :f5)';
             $params = ['f1' => $filter, 'f2' => $filter, 'f3' => $filter, 'f4' => $filter, 'f5' => $filter];
         }
-        $userfields = \core_user\fields::for_name()->get_sql('u', true);
+        $userfields = profile_fields::user_fields()->get_sql('u', true);
+        if ($filter !== '') {
+            $hcanumber = $userfields->mappings[\core_user\fields::PROFILE_FIELD_PREFIX . profile_fields::HCANUMBER];
+            $where .= " OR {$hcanumber} = :f6";
+            $params['f6'] = $filter;
+        }
         $cycles = $DB->get_records_sql("SELECT c.*, b.alayacareid, b.externalid, b.payrollid {$userfields->selects}
             FROM {local_cgt_cycle} c
             JOIN {local_cgt_binding} b ON b.id = c.bindingid
             JOIN {user} u ON u.id = c.userid
+            {$userfields->joins}
             WHERE {$where}
             ORDER BY b.alayacareid, c.timedue, c.id", $params + $userfields->params);
 
         $rows = [];
         $tz = config::timezone();
         foreach ($cycles as $cycle) {
+            $employment = profile_fields::values_from_record($cycle);
             $base = [
-                $cycle->alayacareid, (string) $cycle->externalid, (string) $cycle->payrollid, (int) $cycle->userid,
+                $cycle->alayacareid, (string) $cycle->externalid, (string) $cycle->payrollid,
+                $employment['hcanumber'], $employment['registrationdate'], (int) $cycle->userid,
                 fullname($cycle), $cycle->cycleid, $cycle->status, cycle_manager::compliance($cycle), (string) $cycle->hiredate,
                 $cycle->opendate, $cycle->duedate,
                 $cycle->timecompleted ? (new \DateTimeImmutable('@' . $cycle->timecompleted))->setTimezone($tz)->format(DATE_ATOM)
@@ -76,7 +84,7 @@ class export {
             ];
             $snapshots = $DB->get_records('local_cgt_snapshot', ['cycleid' => $cycle->id], 'id');
             if (!$snapshots) {
-                $rows[] = array_merge($base, ['', '', '', '', '', '', '', '', '']);
+                $rows[] = array_merge($base, array_fill(0, 8, ''));
                 continue;
             }
             foreach ($snapshots as $snapshot) {

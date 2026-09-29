@@ -95,6 +95,8 @@ abstract class adapter_api extends external_api {
             'alayacareid' => new external_value(PARAM_RAW, 'Canonical AlayaCare employee id'),
             'externalid' => new external_value(PARAM_RAW, 'AlayaCare external id'),
             'payrollid' => new external_value(PARAM_RAW, 'Payroll number'),
+            'hcanumber' => new external_value(PARAM_RAW, 'HCA number, from the locked profile field'),
+            'registrationdate' => new external_value(PARAM_RAW, 'HCA registration date (YYYY-MM-DD), or empty'),
             'status' => new external_value(PARAM_ALPHA, 'Binding status'),
             'matchedby' => new external_value(PARAM_RAW, 'Fields that matched', VALUE_OPTIONAL),
         ]);

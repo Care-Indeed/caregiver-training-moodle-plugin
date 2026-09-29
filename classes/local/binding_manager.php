@@ -166,12 +166,15 @@ class binding_manager {
      * @return array
      */
     public static function export(\stdClass $binding): array {
+        $profile = profile_fields::load((int) $binding->userid);
         return [
             'bindingid' => (int) $binding->id,
             'userid' => (int) $binding->userid,
             'alayacareid' => $binding->alayacareid,
             'externalid' => (string) $binding->externalid,
             'payrollid' => (string) $binding->payrollid,
+            'hcanumber' => (string) ($profile[profile_fields::HCANUMBER] ?? ''),
+            'registrationdate' => (string) ($profile[profile_fields::REGISTRATIONDATE] ?? ''),
             'status' => $binding->status,
         ];
     }

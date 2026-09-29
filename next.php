@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Redirect to the next available activity. The target page still enforces its own restrictions.
+ * Redirect to the next available activity (after cmid, if given). The target page still enforces its own restrictions.
  *
  * @package    local_caregivertraining
  * @copyright  2026 CI Institute of Nursing
@@ -27,10 +27,11 @@ require(__DIR__ . '/../../config.php');
 use local_caregivertraining\local\next_activity;
 
 $courseid = required_param('courseid', PARAM_INT);
+$aftercmid = optional_param('cmid', 0, PARAM_INT);
 $course = get_course($courseid);
 require_login($course);
 
-$cm = next_activity::find($course, (int) $USER->id);
+$cm = next_activity::find($course, (int) $USER->id, $aftercmid);
 $courseurl = new moodle_url('/course/view.php', ['id' => $course->id]);
 if (!$cm) {
     redirect($courseurl, get_string('nonextactivity', 'local_caregivertraining'), null, \core\output\notification::NOTIFY_INFO);

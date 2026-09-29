@@ -111,11 +111,13 @@ class time_tracker {
                 return self::result($cycle, $userid, false, 'token_mismatch');
             }
             if (!$session) {
+                $credit = self::credit_previous_page($cycle, $userid, $visible, $playing, $interactedago, $now);
+                $startstate = !$visible ? 'hidden' : ((!$playing && $interactedago > config::idle_seconds()) ? 'idle' : null);
                 $session = (object) ['cycleid' => $cycle->id, 'userid' => $userid, 'cmid' => $cmid, 'sessiontoken' => $token,
                     'timestarted' => $now, 'timelastbeat' => $now, 'beats' => 1, 'rejectedbeats' => 0,
-                    'lastrejectreason' => null, 'creditedseconds' => 0];
+                    'lastrejectreason' => $startstate, 'creditedseconds' => 0];
                 $session->id = $DB->insert_record('local_cgt_timesession', $session);
-                return self::result($cycle, $userid, false, 'session_started');
+                return self::result($cycle, $userid, $credit > 0, 'session_started', $credit);
             }
             if ((int) $session->cmid !== $cmid) {
                 return self::result($cycle, $userid, false, 'token_mismatch');
@@ -153,6 +155,7 @@ class time_tracker {
             $session->beats++;
             if ($credit > 0) {
                 $session->creditedseconds += $credit;
+                $session->lastrejectreason = null;
                 $cycle->timelastcredit = $now;
                 $DB->set_field('local_cgt_cycle', 'timelastcredit', $now, ['id' => $cycle->id]);
             } else {
@@ -164,6 +167,53 @@ class time_tracker {
         } finally {
             $lock->release();
         }
+    }
+
+    /**
+     * When a new page starts, credit the time since the learner's last beat on the previous page, provided that
+     * beat was engaged, it was within one interval plus grace, and the new page is visible and engaged.
+     * Without this, moving through short lesson pages would earn nothing. The shared cursor still applies.
+     *
+     * @param \stdClass $cycle locked, fresh cycle record (timelastcredit is updated in place)
+     * @param int $userid
+     * @param bool $visible
+     * @param bool $playing
+     * @param int $interactedago
+     * @param int $now
+     * @return int seconds credited
+     */
+    private static function credit_previous_page(
+        \stdClass $cycle,
+        int $userid,
+        bool $visible,
+        bool $playing,
+        int $interactedago,
+        int $now
+    ): int {
+        global $DB;
+        if (!$visible || (!$playing && $interactedago > config::idle_seconds())) {
+            return 0;
+        }
+        $previous = $DB->get_records('local_cgt_timesession', ['cycleid' => $cycle->id, 'userid' => $userid],
+            'timelastbeat DESC, id DESC', '*', 0, 1);
+        $previous = reset($previous);
+        if (!$previous || $previous->lastrejectreason !== null) {
+            return 0;
+        }
+        $limit = config::heartbeat_seconds() + self::GRACE;
+        if ($now - (int) $previous->timelastbeat > $limit) {
+            return 0;
+        }
+        $credit = max(0, min($limit, $now - max((int) $cycle->timelastcredit, (int) $previous->timelastbeat)));
+        if ($credit === 0) {
+            return 0;
+        }
+        $previous->creditedseconds += $credit;
+        $previous->timelastbeat = $now;
+        $DB->update_record('local_cgt_timesession', $previous);
+        $cycle->timelastcredit = $now;
+        $DB->set_field('local_cgt_cycle', 'timelastcredit', $now, ['id' => $cycle->id]);
+        return $credit;
     }
 
     /**
@@ -223,6 +273,60 @@ class time_tracker {
     }
 
     /**
+     * The learner-facing time line shown in the banner, as HTML with the values in bold.
+     *
+     * @param \stdClass $cycle
+     * @return string
+     */
+    public static function timeline(\stdClass $cycle): string {
+        $bold = fn(string $text) => \html_writer::tag('strong', s($text));
+        if (config::time_policy() === config::POLICY_UNRESOLVED) {
+            $recorded = self::short_duration(self::recorded_seconds($cycle));
+            return get_string('banner_time_unresolved', config::COMPONENT, $bold($recorded));
+        }
+        $required = config::required_seconds();
+        $approved = self::approved_seconds($cycle);
+        return get_string('banner_time', config::COMPONENT, (object) [
+            'approved' => $bold(self::short_duration($approved)),
+            'required' => $bold(format_time($required)),
+            'remaining' => $bold(self::short_duration(max(0, $required - $approved))),
+        ]);
+    }
+
+    /**
+     * Approved share of the required time, 0-100 (0 while the policy is unresolved).
+     *
+     * @param \stdClass $cycle
+     * @return int
+     */
+    public static function percent(\stdClass $cycle): int {
+        $required = config::required_seconds();
+        if ($required <= 0 || config::time_policy() === config::POLICY_UNRESOLVED) {
+            return 0;
+        }
+        return (int) min(100, floor(self::approved_seconds($cycle) * 100 / $required));
+    }
+
+    /**
+     * Compact duration in whole minutes, e.g. "1 hr 1 min", "3 hrs 58 mins", "0 mins".
+     *
+     * @param int $seconds
+     * @return string
+     */
+    public static function short_duration(int $seconds): string {
+        $hours = intdiv(max(0, $seconds), HOURSECS);
+        $mins = intdiv(max(0, $seconds) % HOURSECS, MINSECS);
+        $parts = [];
+        if ($hours) {
+            $parts[] = get_string($hours === 1 ? 'duration_hr' : 'duration_hrs', config::COMPONENT, $hours);
+        }
+        if ($mins || !$hours) {
+            $parts[] = get_string($mins === 1 ? 'duration_min' : 'duration_mins', config::COMPONENT, $mins);
+        }
+        return implode(' ', $parts);
+    }
+
+    /**
      * Build a heartbeat response.
      *
      * @param \stdClass|null $cycle
@@ -247,6 +351,9 @@ class time_tracker {
             'recordedseconds' => $recorded,
             'remainingseconds' => max(0, $required - $approved),
             'intervalseconds' => config::heartbeat_seconds(),
+            'timeline' => $cycle ? self::timeline($cycle) : '',
+            'progresspercent' => $cycle ? self::percent($cycle) : 0,
+            'progresstext' => $cycle ? get_string('banner_percent', config::COMPONENT, self::percent($cycle)) : '',
         ];
     }
 }

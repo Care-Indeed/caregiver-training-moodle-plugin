@@ -1,4 +1,3 @@
-<?php
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -15,22 +14,29 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Hook callbacks.
+ * Moves the training banner into the main content region so it follows the theme's page layout.
  *
- * @package    local_caregivertraining
+ * The banner can only be output at the top of the body; styles.css keeps it hidden there while JS is enabled.
+ *
+ * @module     local_caregivertraining/banner
  * @copyright  2026 CI Institute of Nursing
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-defined('MOODLE_INTERNAL') || die();
-
-$callbacks = [
-    [
-        'hook' => \core\hook\output\before_standard_top_of_body_html_generation::class,
-        'callback' => [\local_caregivertraining\hook_callbacks::class, 'before_standard_top_of_body_html_generation'],
-    ],
-    [
-        'hook' => \core\hook\output\before_footer_html_generation::class,
-        'callback' => [\local_caregivertraining\hook_callbacks::class, 'before_footer_html_generation'],
-    ],
-];
+export const init = () => {
+    const banner = document.querySelector('#page-wrapper > .local-cgt-banner');
+    if (!banner) {
+        return;
+    }
+    const region = document.getElementById('region-main');
+    if (!region) {
+        banner.classList.add('local-cgt-banner-ready');
+        return;
+    }
+    const notifications = document.getElementById('user-notifications');
+    if (notifications && notifications.parentNode === region) {
+        notifications.after(banner);
+    } else {
+        region.prepend(banner);
+    }
+};
