@@ -189,6 +189,7 @@ final class time_tracker_test extends \advanced_testcase {
     }
 
     public function test_policy_controls_what_is_approved(): void {
+        global $DB;
         $quizcm = (int) $this->fixture->quiz->cmid;
         $this->beat(0, 'a');
         $this->beat(30, 'a');
@@ -205,5 +206,12 @@ final class time_tracker_test extends \advanced_testcase {
 
         set_config('countablecmids', '', 'local_caregivertraining');
         $this->assertSame(0, time_tracker::approved_seconds($cycle), 'nothing counts until HR approves activities');
+
+        set_config('countallactivities', 1, 'local_caregivertraining');
+        $this->assertSame(61, time_tracker::approved_seconds($cycle), 'every activity in the annual course counts');
+
+        $quizmodule = (int) $DB->get_field('modules', 'id', ['name' => 'quiz'], MUST_EXIST);
+        set_config('excludedmodules', (string) $quizmodule, 'local_caregivertraining');
+        $this->assertSame(31, time_tracker::approved_seconds($cycle), 'excluded activity types do not count');
     }
 }

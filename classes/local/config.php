@@ -119,14 +119,44 @@ class config {
     }
 
     /**
-     * Countable course module ids.
+     * Countable course module ids: every activity in the annual course (minus excluded activity types) when
+     * countallactivities is on, otherwise the explicit countablecmids list.
      *
      * @return int[]
      */
     public static function countable_cmids(): array {
+        if (self::get('countallactivities', 0)) {
+            $courseid = self::course_id();
+            if (!$courseid) {
+                return [];
+            }
+            try {
+                $modinfo = get_fast_modinfo($courseid);
+            } catch (\dml_missing_record_exception $e) {
+                return [];
+            }
+            $excluded = self::excluded_module_ids();
+            $ids = [];
+            foreach ($modinfo->get_cms() as $cm) {
+                if (!$cm->deletioninprogress && !in_array((int) $cm->module, $excluded, true)) {
+                    $ids[] = (int) $cm->id;
+                }
+            }
+            return $ids;
+        }
         $raw = (string) self::get('countablecmids', '');
         $ids = array_filter(array_map('intval', preg_split('/[\s,]+/', $raw, -1, PREG_SPLIT_NO_EMPTY)));
         return array_values(array_unique($ids));
+    }
+
+    /**
+     * Activity types ({modules} ids) left out when every activity counts.
+     *
+     * @return int[]
+     */
+    public static function excluded_module_ids(): array {
+        $raw = (string) self::get('excludedmodules', '');
+        return array_values(array_filter(array_map('intval', explode(',', $raw))));
     }
 
     /**

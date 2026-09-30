@@ -25,11 +25,11 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'local_caregivertraining';
-$plugin->version = 2026093000;
+$plugin->version = 2026093001;
 $plugin->requires = 2025100600;
 $plugin->supported = [501, 501];
 $plugin->maturity = MATURITY_ALPHA;
-$plugin->release = '0.1.4';
+$plugin->release = '0.1.5';
 $plugin->dependencies = [
     'mod_customcert' => ANY_VERSION,
     'mod_lesson' => ANY_VERSION,

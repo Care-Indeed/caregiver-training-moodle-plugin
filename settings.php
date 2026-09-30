@@ -101,6 +101,19 @@ if ($hassiteconfig) {
         '',
         PARAM_SEQUENCE
     ));
+    $settings->add(new admin_setting_configcheckbox(
+        "{$component}/countallactivities",
+        get_string('countallactivities', $component),
+        get_string('countallactivities_desc', $component),
+        0
+    ));
+    $settings->add(new admin_setting_configmultiselect_modules(
+        "{$component}/excludedmodules",
+        get_string('excludedmodules', $component),
+        get_string('excludedmodules_desc', $component)
+    ));
+    $settings->hide_if("{$component}/countablecmids", "{$component}/countallactivities", 'checked');
+    $settings->hide_if("{$component}/excludedmodules", "{$component}/countallactivities", 'notchecked');
     $settings->add(new admin_setting_configtextarea(
         "{$component}/nominaldurations",
         get_string('nominaldurations', $component),
