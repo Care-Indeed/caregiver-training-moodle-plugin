@@ -25,6 +25,10 @@ repository in its `Dockerfile`. To release a change:
 
 ## Documentation
 
+Every endpoint (adapter web services, the outbound completion event, admin pages, the CSV export and the CLI
+script) is documented in [docs/api-endpoints.md](docs/api-endpoints.md), including how the web services handle common
+provisioning and cycle scenarios.
+
 The design, release-blocking HR decisions, reset proof of concept, and local development setup are in the Moodle
 repository:
 
