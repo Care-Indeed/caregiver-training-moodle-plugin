@@ -43,8 +43,7 @@ class v1_upsert_cycle extends adapter_api {
             'userid' => new external_value(PARAM_INT, 'Moodle user id'),
             'alayacareid' => new external_value(PARAM_RAW, 'Canonical AlayaCare employee id bound to userid'),
             'hiredate' => new external_value(PARAM_RAW, 'Hire date used by the adapter, YYYY-MM-DD', VALUE_DEFAULT, ''),
-            'opendate' => new external_value(PARAM_RAW, 'Window open date, YYYY-MM-DD (adapter-calculated)'),
-            'duedate' => new external_value(PARAM_RAW, 'Due date, YYYY-MM-DD (adapter-calculated)'),
+            'anniversarydate' => new external_value(PARAM_RAW, 'AlayaCare anniversary date this cycle is due on, YYYY-MM-DD'),
             'supersedescycleid' => new external_value(PARAM_RAW, 'Active cycle this one replaces (rehire)', VALUE_DEFAULT, ''),
         ]);
     }
@@ -57,8 +56,7 @@ class v1_upsert_cycle extends adapter_api {
      * @param int $userid
      * @param string $alayacareid
      * @param string $hiredate
-     * @param string $opendate
-     * @param string $duedate
+     * @param string $anniversarydate
      * @param string $supersedescycleid
      * @return array
      */
@@ -68,8 +66,7 @@ class v1_upsert_cycle extends adapter_api {
         int $userid,
         string $alayacareid,
         string $hiredate,
-        string $opendate,
-        string $duedate,
+        string $anniversarydate,
         string $supersedescycleid = ''
     ): array {
         $params = self::validate_parameters(self::execute_parameters(), compact(
@@ -78,8 +75,7 @@ class v1_upsert_cycle extends adapter_api {
             'userid',
             'alayacareid',
             'hiredate',
-            'opendate',
-            'duedate',
+            'anniversarydate',
             'supersedescycleid'
         ));
         self::require_adapter();

@@ -42,7 +42,7 @@ final class binding_test extends \advanced_testcase {
      * @return array
      */
     private function payload(array $overrides = []): array {
-        return $overrides + ['alayacareid' => '1001', 'externalid' => 'EXT-1001', 'payrollid' => 'PR-1001',
+        return $overrides + ['alayacareid' => '1001', 'payrollnumber' => 'PR-1001',
             'email' => 'casey@example.com', 'firstname' => 'Casey', 'lastname' => 'Synthetic', 'hcanumber' => 'HCA-1',
             'registrationdate' => '2025-06-30', 'createifmissing' => 1, 'sendactivation' => 0];
     }
@@ -78,8 +78,8 @@ final class binding_test extends \advanced_testcase {
         $this->assertSame('casey@example.com', $user->username);
 
         $values = profile_fields::load((int) $created['userid']);
-        $this->assertSame('EXT-1001', $values[profile_fields::EXTERNALID]);
-        $this->assertSame('PR-1001', $values[profile_fields::PAYROLLID]);
+        $this->assertSame('1001', $values[profile_fields::ALAYACAREID]);
+        $this->assertSame('PR-1001', $values[profile_fields::PAYROLLNUMBER]);
         $this->assertSame('HCA-1', $values[profile_fields::HCANUMBER]);
         $this->assertSame('2025-06-30', $values[profile_fields::REGISTRATIONDATE]);
         foreach (array_keys(profile_fields::definitions()) as $shortname) {
@@ -89,8 +89,8 @@ final class binding_test extends \advanced_testcase {
                 "{$shortname} must be locked against learner edits"
             );
         }
-        $this->assertEquals(1, $DB->get_field('user_info_field', 'forceunique', ['shortname' => profile_fields::EXTERNALID]));
-        $this->assertEquals(1, $DB->get_field('user_info_field', 'forceunique', ['shortname' => profile_fields::PAYROLLID]));
+        $this->assertEquals(1, $DB->get_field('user_info_field', 'forceunique', ['shortname' => profile_fields::ALAYACAREID]));
+        $this->assertEquals(1, $DB->get_field('user_info_field', 'forceunique', ['shortname' => profile_fields::PAYROLLNUMBER]));
     }
 
     public function test_locked_fields_are_not_editable_by_the_learner(): void {
@@ -114,15 +114,12 @@ final class binding_test extends \advanced_testcase {
         $this->assertSame(4, $seen);
     }
 
-    public function test_duplicate_external_id_and_payroll_are_rejected(): void {
+    public function test_duplicate_payroll_number_is_rejected(): void {
         global $DB;
         binding_manager::provision($this->payload());
         $this->assert_error('error:bindingconflict', fn() => binding_manager::provision($this->payload([
-            'alayacareid' => '2002', 'payrollid' => 'PR-2002', 'email' => 'other@example.com'])));
-        $this->assert_error('error:bindingconflict', fn() => binding_manager::provision($this->payload([
-            'alayacareid' => '2002', 'externalid' => 'EXT-2002', 'email' => 'other@example.com'])));
-        $this->assertTrue($DB->record_exists('local_cgt_exception', ['type' => 'duplicate_externalid']));
-        $this->assertTrue($DB->record_exists('local_cgt_exception', ['type' => 'duplicate_payrollid']));
+            'alayacareid' => '2002', 'email' => 'other@example.com'])));
+        $this->assertTrue($DB->record_exists('local_cgt_exception', ['type' => 'duplicate_payrollnumber']));
         $this->assertEquals(1, $DB->count_records('local_cgt_binding'));
     }
 
@@ -155,15 +152,15 @@ final class binding_test extends \advanced_testcase {
         $other = $this->getDataGenerator()->create_user();
         $this->assert_error('error:bindingconflict', fn() => binding_manager::provision($this->payload(['userid' => $other->id])));
         $this->assert_error('error:bindingconflict', fn() => binding_manager::provision($this->payload([
-            'alayacareid' => '3003', 'externalid' => 'EXT-3003', 'payrollid' => 'PR-3003', 'userid' => $first['userid']])));
+            'alayacareid' => '3003', 'payrollnumber' => 'PR-3003', 'userid' => $first['userid']])));
 
-        binding_manager::provision($this->payload(['alayacareid' => '4004', 'externalid' => 'EXT-4004', 'payrollid' => 'PR-4004',
+        binding_manager::provision($this->payload(['alayacareid' => '4004', 'payrollnumber' => 'PR-4004',
             'email' => 'dana@example.com']));
         $lookup = binding_manager::lookup(['alayacareid' => '1001']);
         $this->assertSame('bound', $lookup['status']);
         $this->assertSame('HCA-1', $lookup['bindings'][0]['hcanumber']);
         $this->assertSame('2025-06-30', $lookup['bindings'][0]['registrationdate']);
-        $this->assertSame('conflict', binding_manager::lookup(['alayacareid' => '1001', 'payrollid' => 'PR-4004'])['status']);
+        $this->assertSame('conflict', binding_manager::lookup(['alayacareid' => '1001', 'payrollnumber' => 'PR-4004'])['status']);
         $this->assertSame('none', binding_manager::lookup(['alayacareid' => '9999'])['status']);
     }
 
@@ -176,8 +173,8 @@ final class binding_test extends \advanced_testcase {
             $fields->params + ['userid' => $created['userid']]
         );
         $values = profile_fields::values_from_record($record);
-        $this->assertSame('EXT-1001', $values['externalid']);
-        $this->assertSame('PR-1001', $values['payrollid']);
+        $this->assertSame('1001', $values['alayacareid']);
+        $this->assertSame('PR-1001', $values['payrollnumber']);
         $this->assertSame('HCA-1', $values['hcanumber']);
         $this->assertSame('2025-06-30', $values['registrationdate']);
         $this->assertSame($values['registrationdate'], profile_fields::load((int) $created['userid'])[profile_fields::REGISTRATIONDATE]);

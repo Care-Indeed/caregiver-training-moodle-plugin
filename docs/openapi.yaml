@@ -1,0 +1,836 @@
+openapi: 3.0.3
+info:
+  title: Caregiver training adapter API
+  version: "1.0.0"
+  description: |
+    REST API of the Moodle plugin `local_caregivertraining` (contract v1), used by the AlayaCare integration adapter.
+
+    **Authentication:** send a Moodle web service token for the `local_caregivertraining_adapter` service as
+    `Authorization: Bearer <token>`. The token's user needs the `local/caregivertraining:adapterapi` capability.
+
+    **Idempotency:** every `PUT` requires an `Idempotency-Key` header. Repeating a key with an identical request returns
+    the stored response with `replayed: true`; repeating it with a different request returns `409 idempotencyconflict`.
+
+    **Identifiers:**
+    - `alayacareid`: canonical immutable AlayaCare employee id.
+    - `payrollnumber`: payroll number, a separate attribute that must be unique when present.
+    - `cycleid`: adapter-supplied unique Cycle ID.
+
+    **Cycle window:** the adapter sends the AlayaCare anniversary date (the due date). The plugin opens the window
+    60 days before it and ends course access 14 days after it.
+
+    Dates are `YYYY-MM-DD` in the plugin's compliance timezone. Times are Unix timestamps unless stated otherwise.
+
+    The same operations are available as Moodle web service functions (`local_caregivertraining_v1_*`). See
+    `api-endpoints.md`.
+  contact:
+    name: CI Institute of Nursing
+  license:
+    name: GPL-3.0-or-later
+    url: https://www.gnu.org/licenses/gpl-3.0.html
+servers:
+  - url: "{wwwroot}/local/caregivertraining/api.php"
+    variables:
+      wwwroot:
+        default: https://moodle.example.com
+        description: Moodle site URL
+security:
+  - bearerAuth: []
+tags:
+  - name: Health
+    description: Configuration and queue health for monitoring.
+  - name: Learners
+    description: Identity binding between Moodle users and AlayaCare employees.
+  - name: Cycles
+    description: Per-learner annual training cycles.
+paths:
+  /v1/health:
+    get:
+      tags: [Health]
+      operationId: getHealth
+      summary: Get configuration and queue health
+      description: Returns no personal data. `problems` is empty when the plugin is fully configured.
+      responses:
+        "200":
+          description: Health report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /v1/learners:
+    get:
+      tags: [Learners]
+      operationId: searchLearners
+      summary: Search learners
+      description: |
+        Read-only lookup to run before provisioning. At least one filter is required. Email also finds unbound
+        Moodle accounts, returned as `candidates`.
+      parameters:
+        - name: alayacareid
+          in: query
+          schema:
+            type: string
+        - name: payrollnumber
+          in: query
+          schema:
+            type: string
+        - name: email
+          in: query
+          schema:
+            type: string
+        - name: userid
+          in: query
+          description: Moodle user id
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Search result (also returned when nothing matches, with status `none`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearnerSearchResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /v1/learners/{alayacareid}:
+    parameters:
+      - $ref: "#/components/parameters/AlayaCareId"
+    get:
+      tags: [Learners]
+      operationId: getLearner
+      summary: Get a learner
+      responses:
+        "200":
+          description: The learner's binding
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Binding"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Learners]
+      operationId: provisionLearner
+      summary: Create, link or update a learner
+      description: |
+        Never links an account by email on its own and never creates an account when the match is ambiguous.
+
+        - Already bound: updates name, email and profile fields (`200`, `updated` or `unchanged`).
+        - Not bound, `userid` given: links that account (`200`, `linked`).
+        - Not bound, one account uses the email: `409 existingaccount`. Confirm, then retry with `userid`.
+        - Not bound, nothing matches: creates the account when `createifmissing` is true (`201`), otherwise
+          `404 learnernotfound`.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProvisionRequest"
+            example:
+              email: riley@example.com
+              firstname: Riley
+              lastname: Synthetic
+              payrollnumber: PR-5005
+              createifmissing: true
+              sendactivation: true
+      responses:
+        "200":
+          description: Linked, updated or unchanged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProvisionResult"
+        "201":
+          description: Account created
+          headers:
+            Location:
+              $ref: "#/components/headers/Location"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProvisionResult"
+              example:
+                status: created
+                userid: 345
+                bindingid: 12
+                activation: queued
+                replayed: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /v1/cycles:
+    get:
+      tags: [Cycles]
+      operationId: listCycles
+      summary: List cycles
+      description: |
+        By Cycle ID, or every cycle modified at or after `modifiedsince` (oldest first). To poll for changes, send the
+        previous response's `servertime` as the next `modifiedsince`.
+      parameters:
+        - name: cycleids
+          in: query
+          description: Comma-separated Cycle IDs. When given, `modifiedsince` is ignored.
+          schema:
+            type: string
+          example: C-2026-5005,C-2027-5005
+        - name: modifiedsince
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 100
+      responses:
+        "200":
+          description: Cycles
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CycleList"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /v1/cycles/{cycleid}:
+    parameters:
+      - $ref: "#/components/parameters/CycleId"
+    get:
+      tags: [Cycles]
+      operationId: getCycle
+      summary: Get a cycle
+      responses:
+        "200":
+          description: The cycle with its unmet completion requirements
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CycleWithGates"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Cycles]
+      operationId: upsertCycle
+      summary: Create, update or start a cycle
+      description: |
+        The learner must already be provisioned and `alayacareid` must be bound to `userid`.
+
+        - New Cycle ID with the same `anniversarydate` as one of the learner's completed cycles: `409 alreadycompleted`.
+        - New Cycle ID while the learner has an active cycle (`scheduled`, `open` or `blocked`): `409 cycleconflict`,
+          unless `supersedescycleid` names that cycle.
+        - Existing Cycle ID: the same `anniversarydate` returns `unchanged`; a new one recalculates the window and
+          returns `updated`, unless the cycle is completed or superseded (`409 cycleimmutable`).
+        - The window opens at 00:00 on the anniversary minus 60 days. A scheduled cycle whose window has opened starts
+          immediately: earlier progress is snapshotted and reset, and the learner is enrolled until 23:59:59 on the
+          anniversary plus 14 days.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CycleUpsertRequest"
+            example:
+              userid: 345
+              alayacareid: "5005"
+              hiredate: "2021-03-15"
+              anniversarydate: "2027-03-15"
+      responses:
+        "200":
+          description: Updated or unchanged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CycleUpsertResult"
+        "201":
+          description: Created
+          headers:
+            Location:
+              $ref: "#/components/headers/Location"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CycleUpsertResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /v1/cycles/{cycleid}/access:
+    parameters:
+      - $ref: "#/components/parameters/CycleId"
+    put:
+      tags: [Cycles]
+      operationId: updateCycleAccess
+      summary: Apply employment, enrolment and reminder state
+      description: |
+        `terminated` always turns reminders off. HR policies that aren't approved yet are reported in `policygates`
+        and not applied.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccessRequest"
+            example:
+              userid: 345
+              alayacareid: "5005"
+              employmentstatus: leave
+              enrolmentstatus: suspended
+              remindersenabled: false
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccessResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /v1/cycles/{cycleid}/repair:
+    parameters:
+      - $ref: "#/components/parameters/CycleId"
+    post:
+      tags: [Cycles]
+      operationId: repairCycle
+      summary: Re-evaluate completion and re-queue failed events
+      description: |
+        For an open cycle, re-evaluates completion. For a completed cycle, recreates missing side effects and
+        re-queues failed events. Safe to repeat; no idempotency key needed. Send no body.
+      responses:
+        "200":
+          description: The cycle after repair
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CycleWithGates"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Moodle web service token for the `local_caregivertraining_adapter` service.
+  parameters:
+    AlayaCareId:
+      name: alayacareid
+      in: path
+      required: true
+      description: Canonical AlayaCare employee id
+      schema:
+        type: string
+        pattern: "^[A-Za-z0-9._-]{1,64}$"
+      example: "5005"
+    CycleId:
+      name: cycleid
+      in: path
+      required: true
+      description: Adapter-supplied Cycle ID
+      schema:
+        type: string
+        pattern: "^[A-Za-z0-9._:-]{1,100}$"
+      example: C-2026-5005
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Unique per logical request
+      schema:
+        type: string
+        pattern: "^[A-Za-z0-9._:-]{1,128}$"
+      example: prov-5005-20261002-1
+  headers:
+    Location:
+      description: URL of the created resource
+      schema:
+        type: string
+        format: uri
+    RetryAfter:
+      description: Seconds to wait before retrying
+      schema:
+        type: integer
+  responses:
+    BadRequest:
+      description: Missing, malformed or unexpected input
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            code: 400
+            error: invalidparameter
+            message: Invalid parameter value detected
+            details: "Unexpected field(s): verbose. Allowed: none."
+    Unauthorized:
+      description: Missing or unknown token
+      headers:
+        WWW-Authenticate:
+          schema:
+            type: string
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            code: 401
+            error: invalidtoken
+            message: Invalid token - token not found
+    Forbidden:
+      description: Token expired, wrong service, user not authorised on the service, or missing capability
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            code: 403
+            error: wrongservice
+            message: This token belongs to a different web service. Create a token for the Caregiver training adapter service.
+    NotFound:
+      description: |
+        Learner, cycle or route not found. `error` is `learnernotfound`, `cyclenotfound`, `bindingmismatch`,
+        `usernotfound` or `routenotfound`.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            code: 404
+            error: learnernotfound
+            message: No Moodle learner is bound to AlayaCare id 5005.
+    Conflict:
+      description: |
+        Clash with existing data. `error` is `existingaccount`, `ambiguousemail`, `usernametaken`, `bindingconflict`,
+        `cycleconflict`, `cycleimmutable`, `alreadycompleted` or `idempotencyconflict`.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            code: 409
+            error: cycleconflict
+            message: "Cycle conflict: learner has active cycle C-2026-5005; send supersedescycleid to replace it"
+    ServiceUnavailable:
+      description: Plugin not configured, site in maintenance, or a learner lock timed out. Safe to retry.
+      headers:
+        Retry-After:
+          $ref: "#/components/headers/RetryAfter"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+  schemas:
+    Error:
+      type: object
+      required: [code, error, message]
+      properties:
+        code:
+          type: integer
+          description: HTTP status code
+          example: 409
+        error:
+          type: string
+          description: Stable machine-readable code
+          example: cycleconflict
+        message:
+          type: string
+          description: Human-readable explanation
+        details:
+          type: string
+          description: Extra detail, for example which parameter failed validation
+    Binding:
+      type: object
+      required: [bindingid, userid, alayacareid, payrollnumber, hcanumber, registrationdate, status]
+      properties:
+        bindingid:
+          type: integer
+        userid:
+          type: integer
+          description: Moodle user id
+        alayacareid:
+          type: string
+        payrollnumber:
+          type: string
+        hcanumber:
+          type: string
+        registrationdate:
+          type: string
+          description: YYYY-MM-DD or empty
+        status:
+          type: string
+          example: active
+    BindingMatch:
+      allOf:
+        - $ref: "#/components/schemas/Binding"
+        - type: object
+          properties:
+            matchedby:
+              type: string
+              description: Comma-separated fields that matched
+              example: alayacareid,payrollnumber
+    LearnerSearchResult:
+      type: object
+      required: [status, count, items, candidates]
+      properties:
+        status:
+          type: string
+          enum: [bound, candidate, ambiguous, conflict, none]
+          description: |
+            `bound`: exactly one binding matched. `candidate`: one unbound account has the email. `ambiguous`: several
+            unbound accounts have the email. `conflict`: the fields match more than one binding. `none`: no match.
+        count:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/BindingMatch"
+        candidates:
+          type: array
+          items:
+            type: object
+            properties:
+              userid:
+                type: integer
+              username:
+                type: string
+              suspended:
+                type: boolean
+              via:
+                type: string
+                example: email
+    ProvisionRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        alayacareid:
+          type: string
+          description: Optional; must match the URL
+        userid:
+          type: integer
+          description: Existing Moodle user to link (explicit confirmation)
+        email:
+          type: string
+          format: email
+          description: Required when creating
+        firstname:
+          type: string
+          description: Required when creating
+        lastname:
+          type: string
+          description: Required when creating
+        payrollnumber:
+          type: string
+          nullable: true
+          description: null or omitted leaves it unchanged; empty string clears it
+        hcanumber:
+          type: string
+          nullable: true
+          description: null or omitted leaves it unchanged; empty string clears it
+        registrationdate:
+          type: string
+          nullable: true
+          description: YYYY-MM-DD
+        createifmissing:
+          type: boolean
+          default: false
+        sendactivation:
+          type: boolean
+          default: false
+          description: Queue the activation email for never-used accounts
+    ProvisionResult:
+      type: object
+      required: [status, userid, bindingid, activation, replayed]
+      properties:
+        status:
+          type: string
+          enum: [created, linked, updated, unchanged]
+        userid:
+          type: integer
+        bindingid:
+          type: integer
+        activation:
+          type: string
+          enum: [queued, alreadyactive, notrequested]
+        replayed:
+          type: boolean
+    OutboundEvent:
+      type: object
+      properties:
+        eventtype:
+          type: string
+          example: cycle.completed
+        eventid:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending, delivered, failed]
+        attempts:
+          type: integer
+    Cycle:
+      type: object
+      properties:
+        cycleid:
+          type: string
+        userid:
+          type: integer
+        alayacareid:
+          type: string
+        status:
+          type: string
+          enum: [scheduled, open, blocked, completed, superseded]
+        compliance:
+          type: string
+          enum: [upcoming, open, overdue, complete, notapplicable]
+        hiredate:
+          type: string
+          description: YYYY-MM-DD or empty
+        anniversarydate:
+          type: string
+          description: YYYY-MM-DD; the due date
+          example: "2027-03-15"
+        timeopen:
+          type: integer
+          description: 00:00 on the anniversary minus 60 days
+        timedue:
+          type: integer
+          description: Last second of the anniversary date
+        timeaccessend:
+          type: integer
+          description: Last second of course access, the anniversary plus 14 days
+        employmentstatus:
+          type: string
+          enum: [active, inactive, terminated, leave]
+        enrolmentstatus:
+          type: string
+          enum: [active, suspended]
+        remindersenabled:
+          type: boolean
+        resetstate:
+          type: string
+          enum: [pending, notrequired, done, blocked]
+        blockedreason:
+          type: string
+        timecompleted:
+          type: integer
+          description: Completion time, or 0
+        approvedseconds:
+          type: integer
+        timepolicy:
+          type: string
+        certificatecode:
+          type: string
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/OutboundEvent"
+    CycleWithGates:
+      allOf:
+        - $ref: "#/components/schemas/Cycle"
+        - type: object
+          properties:
+            gates:
+              type: array
+              description: Unmet completion requirements (open cycles only)
+              items:
+                type: string
+                enum:
+                  - cycle_not_open
+                  - course_not_complete
+                  - completion_predates_cycle
+                  - time_policy_unresolved
+                  - time_requirement_not_met
+                  - certificate_not_configured
+    CycleList:
+      type: object
+      required: [count, items, servertime]
+      properties:
+        count:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CycleWithGates"
+        servertime:
+          type: integer
+          description: Send as the next `modifiedsince`
+    CycleUpsertRequest:
+      type: object
+      additionalProperties: false
+      required: [userid, alayacareid, anniversarydate]
+      properties:
+        cycleid:
+          type: string
+          description: Optional; must match the URL
+        userid:
+          type: integer
+        alayacareid:
+          type: string
+          description: Must already be bound to userid
+        hiredate:
+          type: string
+          description: YYYY-MM-DD, stored for reference
+        anniversarydate:
+          type: string
+          description: YYYY-MM-DD AlayaCare anniversary date this cycle is due on
+        supersedescycleid:
+          type: string
+          description: Active cycle this one replaces, for example after a rehire
+    CycleUpsertResult:
+      type: object
+      required: [action, cycle, replayed]
+      properties:
+        action:
+          type: string
+          enum: [created, updated, unchanged]
+        cycle:
+          $ref: "#/components/schemas/Cycle"
+        replayed:
+          type: boolean
+    AccessRequest:
+      type: object
+      additionalProperties: false
+      required: [userid, alayacareid, employmentstatus]
+      properties:
+        userid:
+          type: integer
+        alayacareid:
+          type: string
+        employmentstatus:
+          type: string
+          enum: [active, inactive, terminated, leave]
+        enrolmentstatus:
+          type: string
+          enum: [active, suspended, ""]
+          description: Empty or omitted leaves it unchanged
+        remindersenabled:
+          type: boolean
+          nullable: true
+          description: null or omitted leaves it unchanged
+    AccessResult:
+      type: object
+      required: [cycle, policygates, replayed]
+      properties:
+        cycle:
+          $ref: "#/components/schemas/Cycle"
+        policygates:
+          type: array
+          items:
+            type: string
+            enum: [leave_access_unresolved, terminated_access_unresolved]
+        replayed:
+          type: boolean
+    Health:
+      type: object
+      properties:
+        contract:
+          type: string
+          example: v1
+        pluginversion:
+          type: integer
+        moodlerelease:
+          type: string
+        timepolicy:
+          type: string
+          enum: [unresolved, tracked, nominal]
+        adapterdelivery:
+          type: boolean
+        cycles:
+          type: object
+          properties:
+            scheduled:
+              type: integer
+            open:
+              type: integer
+            blocked:
+              type: integer
+            completed:
+              type: integer
+        outbox:
+          type: object
+          properties:
+            pending:
+              type: integer
+            failed:
+              type: integer
+        openexceptions:
+          type: integer
+        processcycleslastrun:
+          type: integer
+        problems:
+          type: array
+          items:
+            type: string
+            enum:
+              - course_not_configured
+              - certificate_not_configured
+              - time_policy_unresolved
+              - adapter_delivery_misconfigured
+              - process_cycles_stale
+        servertime:
+          type: integer

@@ -90,8 +90,7 @@ class local_caregivertraining_generator extends component_generator_base {
         $suffix = random_string(6);
         $params = $overrides + [
             'alayacareid' => 'AC' . $n . $suffix,
-            'externalid' => 'EXT-' . $n . $suffix,
-            'payrollid' => 'PR-' . $n . $suffix,
+            'payrollnumber' => 'PR-' . $n . $suffix,
             'email' => "learner{$n}.{$suffix}@example.com",
             'firstname' => 'Synthetic',
             'lastname' => 'Learner ' . $n,

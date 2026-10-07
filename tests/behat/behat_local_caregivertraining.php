@@ -43,13 +43,12 @@ class behat_local_caregivertraining extends behat_base {
     /**
      * Provision a learner and give them a cycle.
      *
-     * @Given /^caregiver "(?P<username>[^"]*)" has cycle "(?P<cycleid>[^"]*)" opening (?P<open>-?\d+) days from today and due (?P<due>-?\d+) days from today$/
+     * @Given /^caregiver "(?P<username>[^"]*)" has cycle "(?P<cycleid>[^"]*)" due (?P<due>-?\d+) days from today$/
      * @param string $username
      * @param string $cycleid
-     * @param int $open
-     * @param int $due
+     * @param int $due anniversary as days from today
      */
-    public function caregiver_has_cycle(string $username, string $cycleid, int $open, int $due): void {
+    public function caregiver_has_cycle(string $username, string $cycleid, int $due): void {
         global $DB;
         $user = $DB->get_record('user', ['username' => $username]);
         $alayacareid = 'BEHAT-' . $username;
@@ -62,6 +61,6 @@ class behat_local_caregivertraining extends behat_base {
         }
         $day = fn(int $d) => (new DateTimeImmutable('now', config::timezone()))->modify("{$d} days")->format('Y-m-d');
         cycle_manager::upsert(['cycleid' => $cycleid, 'userid' => $user->id, 'alayacareid' => $alayacareid,
-            'opendate' => $day($open), 'duedate' => $day($due)]);
+            'anniversarydate' => $day($due)]);
     }
 }

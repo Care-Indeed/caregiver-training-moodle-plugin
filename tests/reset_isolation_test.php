@@ -61,15 +61,13 @@ final class reset_isolation_test extends \advanced_testcase {
      *
      * @param \stdClass $learner
      * @param string $cycleid
-     * @param int $open days from today
-     * @param int $due days from today
+     * @param int $due anniversary as days from today
      * @param array $extra
      * @return array
      */
-    private function cycle(\stdClass $learner, string $cycleid, int $open, int $due, array $extra = []): array {
+    private function cycle(\stdClass $learner, string $cycleid, int $due, array $extra = []): array {
         return cycle_manager::upsert($extra + ['cycleid' => $cycleid, 'userid' => $learner->user->id,
-            'alayacareid' => $learner->alayacareid, 'hiredate' => '2020-01-01', 'opendate' => $this->day($open),
-            'duedate' => $this->day($due)]);
+            'alayacareid' => $learner->alayacareid, 'hiredate' => '2020-01-01', 'anniversarydate' => $this->day($due)]);
     }
 
     /**
@@ -92,8 +90,8 @@ final class reset_isolation_test extends \advanced_testcase {
         $b = $this->gen->create_learner();
         $courseid = (int) $this->fixture->course->id;
 
-        $this->assertSame('open', $this->cycle($a, 'A-2025', -300, -10)['cycle']['status']);
-        $this->assertSame('open', $this->cycle($b, 'B-2026', -20, 300)['cycle']['status']);
+        $this->assertSame('open', $this->cycle($a, 'A-2025', -10)['cycle']['status']);
+        $this->assertSame('open', $this->cycle($b, 'B-2026', 40)['cycle']['status']);
         $this->gen->create_evidence($this->fixture, (int) $a->user->id);
         $this->gen->create_evidence($this->fixture, (int) $b->user->id);
 
@@ -122,7 +120,7 @@ final class reset_isolation_test extends \advanced_testcase {
         );
 
         // New annual cycle for A opens today: snapshot A's 2025 evidence, then reset only A.
-        $result = $this->cycle($a, 'A-2026', 0, 355);
+        $result = $this->cycle($a, 'A-2026', 60);
         $this->assertSame('open', $result['cycle']['status'], $result['cycle']['blockedreason']);
         $this->assertSame('done', $result['cycle']['resetstate']);
 
@@ -172,7 +170,7 @@ final class reset_isolation_test extends \advanced_testcase {
         global $DB;
         $a = $this->gen->create_learner();
         $courseid = (int) $this->fixture->course->id;
-        $this->cycle($a, 'A-2025', -300, -10);
+        $this->cycle($a, 'A-2025', -10);
         $this->gen->create_evidence($this->fixture, (int) $a->user->id);
         $this->assertTrue(completion_manager::evaluate((int) cycle_manager::get('A-2025')->id));
 
@@ -183,7 +181,7 @@ final class reset_isolation_test extends \advanced_testcase {
 
         $before = evidence::live_counts((int) $a->user->id, $courseid);
         $beforedata = $this->evidence_of((int) $a->user->id);
-        $result = $this->cycle($a, 'A-2026', 0, 355);
+        $result = $this->cycle($a, 'A-2026', 60);
 
         $this->assertSame('blocked', $result['cycle']['status']);
         $this->assertStringContainsString('mod_forum', $result['cycle']['blockedreason']);
@@ -202,14 +200,14 @@ final class reset_isolation_test extends \advanced_testcase {
         global $DB;
         $a = $this->gen->create_learner();
         $courseid = (int) $this->fixture->course->id;
-        $this->cycle($a, 'A-2025', -300, -10);
+        $this->cycle($a, 'A-2025', -10);
         $this->gen->create_evidence($this->fixture, (int) $a->user->id);
         $this->assertTrue(completion_manager::evaluate((int) cycle_manager::get('A-2025')->id));
         $before = evidence::live_counts((int) $a->user->id, $courseid);
 
         // Break certificate rendering so the snapshot cannot be captured.
         $DB->set_field('customcert', 'templateid', -1, ['id' => $this->fixture->customcert->id]);
-        $result = $this->cycle($a, 'A-2026', 0, 355);
+        $result = $this->cycle($a, 'A-2026', 60);
 
         $this->assertSame('blocked', $result['cycle']['status']);
         $this->assertSame('blocked', $result['cycle']['resetstate']);
@@ -221,7 +219,7 @@ final class reset_isolation_test extends \advanced_testcase {
         global $DB;
         $a = $this->gen->create_learner();
         $courseid = (int) $this->fixture->course->id;
-        $this->cycle($a, 'A-2025', -300, -10);
+        $this->cycle($a, 'A-2025', -10);
         $this->gen->create_evidence($this->fixture, (int) $a->user->id);
         $cycle = cycle_manager::get('A-2025');
         $snapshot = evidence::create_snapshot($cycle, 'prereset', $this->fixture->course);

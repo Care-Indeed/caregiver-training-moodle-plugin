@@ -53,20 +53,22 @@ class hook_callbacks {
         $now = time();
         switch ($cycle->status) {
             case 'scheduled':
-                $lines[] = get_string('banner_scheduled', config::COMPONENT, $bold($datestr($cycle->opendate)));
+                $lines[] = get_string('banner_scheduled', config::COMPONENT,
+                    $bold($datestr(cycle_manager::open_date($cycle->anniversarydate))));
                 break;
             case 'completed':
                 $lines[] = get_string('banner_complete', config::COMPONENT, $bold(userdate($cycle->timecompleted, $fmt, $tz)));
                 break;
             default:
-                $lines[] = get_string('banner_due', config::COMPONENT, $bold($datestr($cycle->duedate)));
+                $lines[] = get_string('banner_due', config::COMPONENT, $bold($datestr($cycle->anniversarydate)));
                 if ($now <= $cycle->timedue) {
                     $days = (int) floor(($cycle->timedue - $now) / DAYSECS);
                     $key = $days === 1 ? 'banner_dayremaining' : 'banner_daysremaining';
                     $lines[] = $bold(get_string($key, config::COMPONENT, $days));
                 } else {
                     $days = (int) ceil(($now - $cycle->timedue) / DAYSECS);
-                    $lines[] = $bold(get_string('banner_overdue', config::COMPONENT, $days));
+                    $lines[] = $bold(get_string('banner_overdue', config::COMPONENT, (object) ['days' => $days,
+                        'accessend' => $datestr(cycle_manager::access_end_date($cycle->anniversarydate))]));
                 }
         }
         $row = fn(string $icon, string $html) => \html_writer::div(

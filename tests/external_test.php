@@ -64,7 +64,7 @@ final class external_test extends \advanced_testcase {
      */
     private function provision(string $key, array $overrides = []): array {
         $p = $overrides + ['alayacareid' => '5005', 'email' => 'riley@example.com', 'firstname' => 'Riley',
-            'lastname' => 'Synthetic', 'externalid' => 'EXT-5005', 'payrollid' => 'PR-5005'];
+            'lastname' => 'Synthetic', 'payrollnumber' => 'PR-5005'];
         $result = v1_provision_learner::execute(
             $key,
             $p['alayacareid'],
@@ -72,8 +72,7 @@ final class external_test extends \advanced_testcase {
             $p['email'],
             $p['firstname'],
             $p['lastname'],
-            $p['externalid'],
-            $p['payrollid'],
+            $p['payrollnumber'],
             null,
             null,
             true,
@@ -89,7 +88,7 @@ final class external_test extends \advanced_testcase {
             fn() => v1_health::execute(),
             fn() => v1_reconcile::execute(),
             fn() => $this->provision('k1'),
-            fn() => v1_upsert_cycle::execute('k2', 'C-1', 2, '5005', '', '2026-01-01', '2026-12-31'),
+            fn() => v1_upsert_cycle::execute('k2', 'C-1', 2, '5005', '', '2026-12-31'),
             fn() => v1_update_access::execute('k3', 'C-1', 2, '5005', 'active'),
         ];
         foreach ($calls as $i => $call) {
@@ -139,10 +138,10 @@ final class external_test extends \advanced_testcase {
     public function test_cycle_upsert_and_reconcile_round_trip(): void {
         $this->setUser($this->adapter);
         $learner = $this->provision('prov-1');
-        $today = (new \DateTimeImmutable('now', config::timezone()))->format('Y-m-d');
+        $anniversary = (new \DateTimeImmutable('now', config::timezone()))->modify('+30 days')->format('Y-m-d');
         $result = external_api::clean_returnvalue(
             v1_upsert_cycle::execute_returns(),
-            v1_upsert_cycle::execute('cyc-1', 'CYC-5005-2026', $learner['userid'], '5005', '2020-02-01', $today, '2099-01-31')
+            v1_upsert_cycle::execute('cyc-1', 'CYC-5005-2026', $learner['userid'], '5005', '2020-02-01', $anniversary)
         );
         $this->assertSame('created', $result['action']);
         $this->assertSame('open', $result['cycle']['status']);
@@ -152,8 +151,7 @@ final class external_test extends \advanced_testcase {
             $learner['userid'],
             '5005',
             '2020-02-01',
-            $today,
-            '2099-01-31'
+            $anniversary
         );
         $this->assertTrue($replay['replayed']);
 
@@ -171,9 +169,9 @@ final class external_test extends \advanced_testcase {
     public function test_heartbeat_requires_enrolled_learner_in_annual_course(): void {
         $gen = $this->getDataGenerator()->get_plugin_generator('local_caregivertraining');
         $learner = $gen->create_learner();
-        $today = (new \DateTimeImmutable('now', config::timezone()))->format('Y-m-d');
+        $anniversary = (new \DateTimeImmutable('now', config::timezone()))->modify('+30 days')->format('Y-m-d');
         local\cycle_manager::upsert(['cycleid' => 'HB-1', 'userid' => $learner->user->id,
-            'alayacareid' => $learner->alayacareid, 'opendate' => $today, 'duedate' => '2099-01-01']);
+            'alayacareid' => $learner->alayacareid, 'anniversarydate' => $anniversary]);
 
         $this->setUser($learner->user);
         $result = external_api::clean_returnvalue(

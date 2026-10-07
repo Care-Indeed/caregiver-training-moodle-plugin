@@ -17,8 +17,8 @@
 namespace local_caregivertraining\local;
 
 /**
- * Identity binding. The canonical immutable key is the AlayaCare employee id; External ID and
- * payroll number are separate attributes that must be unique when present but can change.
+ * Identity binding. The canonical immutable key is the AlayaCare employee id; the payroll number
+ * is a separate attribute that must be unique when present but can change.
  *
  * @package    local_caregivertraining
  * @copyright  2026 CI Institute of Nursing
@@ -95,7 +95,7 @@ class binding_manager {
     /**
      * Read-only lookup used by the adapter before deciding what to do.
      *
-     * @param array $query alayacareid, externalid, payrollid, email, userid (any subset)
+     * @param array $query alayacareid, payrollnumber, email, userid (any subset)
      * @return array
      */
     public static function lookup(array $query): array {
@@ -113,11 +113,9 @@ class binding_manager {
         if (!empty($query['userid'])) {
             $add(self::get_by_userid((int) $query['userid']), 'userid');
         }
-        foreach (['externalid', 'payrollid'] as $attr) {
-            if (!empty($query[$attr])) {
-                foreach ($DB->get_records('local_cgt_binding', [$attr => trim($query[$attr])]) as $binding) {
-                    $add($binding, $attr);
-                }
+        if (!empty($query['payrollnumber'])) {
+            foreach ($DB->get_records('local_cgt_binding', ['payrollnumber' => trim($query['payrollnumber'])]) as $binding) {
+                $add($binding, 'payrollnumber');
             }
         }
 
@@ -171,8 +169,7 @@ class binding_manager {
             'bindingid' => (int) $binding->id,
             'userid' => (int) $binding->userid,
             'alayacareid' => $binding->alayacareid,
-            'externalid' => (string) $binding->externalid,
-            'payrollid' => (string) $binding->payrollid,
+            'payrollnumber' => (string) $binding->payrollnumber,
             'hcanumber' => (string) ($profile[profile_fields::HCANUMBER] ?? ''),
             'registrationdate' => (string) ($profile[profile_fields::REGISTRATIONDATE] ?? ''),
             'status' => $binding->status,
@@ -180,28 +177,26 @@ class binding_manager {
     }
 
     /**
-     * Ensure External ID / payroll are not bound to a different employee.
+     * Ensure the payroll number is not bound to a different employee.
      *
      * @param string $alayacareid
-     * @param string|null $externalid
-     * @param string|null $payrollid
+     * @param string|null $payrollnumber
      */
-    private static function assert_attributes_unique(string $alayacareid, ?string $externalid, ?string $payrollid): void {
+    private static function assert_payrollnumber_unique(string $alayacareid, ?string $payrollnumber): void {
         global $DB;
-        foreach (['externalid' => $externalid, 'payrollid' => $payrollid] as $field => $value) {
-            if ($value === null || $value === '') {
-                continue;
-            }
-            $select = "{$field} = :value AND alayacareid <> :alayacareid";
-            if ($DB->record_exists_select('local_cgt_binding', $select, ['value' => $value, 'alayacareid' => $alayacareid])) {
-                exceptions::raise('duplicate_' . $field, ['key' => $value, 'field' => $field], null, $alayacareid);
-                throw new \moodle_exception(
-                    'error:bindingconflict',
-                    config::COMPONENT,
-                    '',
-                    "{$field} is bound to another employee"
-                );
-            }
+        if ($payrollnumber === null || $payrollnumber === '') {
+            return;
+        }
+        $select = "payrollnumber = :value AND alayacareid <> :alayacareid";
+        if ($DB->record_exists_select('local_cgt_binding', $select, ['value' => $payrollnumber, 'alayacareid' => $alayacareid])) {
+            exceptions::raise('duplicate_payrollnumber', ['key' => $payrollnumber, 'field' => 'payrollnumber'], null,
+                $alayacareid);
+            throw new \moodle_exception(
+                'error:bindingconflict',
+                config::COMPONENT,
+                '',
+                'payrollnumber is bound to another employee'
+            );
         }
     }
 
@@ -216,8 +211,7 @@ class binding_manager {
         require_once($CFG->dirroot . '/user/lib.php');
 
         $alayacareid = self::normalise_id($p['alayacareid']);
-        $externalid = self::attr($p['externalid'] ?? null);
-        $payrollid = self::attr($p['payrollid'] ?? null);
+        $payrollnumber = self::attr($p['payrollnumber'] ?? null);
         $email = trim((string) ($p['email'] ?? ''));
         if ($email !== '' && !validate_email($email)) {
             throw new \moodle_exception('error:invalidemail', config::COMPONENT);
@@ -229,7 +223,7 @@ class binding_manager {
         $lock = locks::acquire('binding:' . $alayacareid);
         $emaillock = $email !== '' ? locks::acquire('email:' . \core_text::strtolower($email)) : null;
         try {
-            self::assert_attributes_unique($alayacareid, $externalid, $payrollid);
+            self::assert_payrollnumber_unique($alayacareid, $payrollnumber);
             $binding = self::get_by_alayacareid($alayacareid);
             $action = 'unchanged';
             $activation = 'notrequested';
@@ -250,7 +244,7 @@ class binding_manager {
                     exceptions::raise('bound_user_deleted', [], (int) $binding->userid, $alayacareid);
                     throw new \moodle_exception('error:usernotfound', config::COMPONENT);
                 }
-                $changed = self::update_binding_attributes($binding, $externalid, $payrollid);
+                $changed = self::update_payrollnumber($binding, $payrollnumber);
                 $changed = self::update_user_details($user, $p, $email) || $changed;
                 $action = $changed ? 'updated' : 'unchanged';
             } else {
@@ -306,8 +300,7 @@ class binding_manager {
                 $binding = (object) [
                     'userid' => $user->id,
                     'alayacareid' => $alayacareid,
-                    'externalid' => $externalid ?: null,
-                    'payrollid' => $payrollid ?: null,
+                    'payrollnumber' => $payrollnumber ?: null,
                     'status' => 'active',
                     'timecreated' => $now,
                     'timemodified' => $now,
@@ -322,8 +315,8 @@ class binding_manager {
             }
 
             profile_fields::save((int) $binding->userid, [
-                profile_fields::EXTERNALID => $externalid,
-                profile_fields::PAYROLLID => $payrollid,
+                profile_fields::ALAYACAREID => $binding->alayacareid,
+                profile_fields::PAYROLLNUMBER => $payrollnumber,
                 profile_fields::HCANUMBER => self::attr($p['hcanumber'] ?? null),
                 profile_fields::REGISTRATIONDATE => self::attr($p['registrationdate'] ?? null),
             ]);
@@ -350,28 +343,22 @@ class binding_manager {
     }
 
     /**
-     * Update mutable binding attributes.
+     * Update the binding's payroll number.
      *
      * @param \stdClass $binding
-     * @param string|null $externalid
-     * @param string|null $payrollid
+     * @param string|null $payrollnumber null leaves it unchanged, '' clears it
      * @return bool changed
      */
-    private static function update_binding_attributes(\stdClass $binding, ?string $externalid, ?string $payrollid): bool {
+    private static function update_payrollnumber(\stdClass $binding, ?string $payrollnumber): bool {
         global $DB, $USER;
-        $changed = false;
-        foreach (['externalid' => $externalid, 'payrollid' => $payrollid] as $field => $value) {
-            if ($value !== null && (string) $binding->$field !== $value) {
-                $binding->$field = $value === '' ? null : $value;
-                $changed = true;
-            }
+        if ($payrollnumber === null || (string) $binding->payrollnumber === $payrollnumber) {
+            return false;
         }
-        if ($changed) {
-            $binding->timemodified = time();
-            $binding->usermodified = $USER->id ?? 0;
-            $DB->update_record('local_cgt_binding', $binding);
-        }
-        return $changed;
+        $binding->payrollnumber = $payrollnumber === '' ? null : $payrollnumber;
+        $binding->timemodified = time();
+        $binding->usermodified = $USER->id ?? 0;
+        $DB->update_record('local_cgt_binding', $binding);
+        return true;
     }
 
     /**

@@ -43,8 +43,7 @@ class v1_provision_learner extends adapter_api {
             'email' => new external_value(PARAM_RAW, 'Email', VALUE_DEFAULT, ''),
             'firstname' => new external_value(PARAM_NOTAGS, 'First name', VALUE_DEFAULT, ''),
             'lastname' => new external_value(PARAM_NOTAGS, 'Last name', VALUE_DEFAULT, ''),
-            'externalid' => new external_value(PARAM_RAW, 'AlayaCare external id', VALUE_DEFAULT, null, NULL_ALLOWED),
-            'payrollid' => new external_value(PARAM_RAW, 'Employee ID / payroll number', VALUE_DEFAULT, null, NULL_ALLOWED),
+            'payrollnumber' => new external_value(PARAM_RAW, 'Payroll number', VALUE_DEFAULT, null, NULL_ALLOWED),
             'hcanumber' => new external_value(PARAM_RAW, 'HCA number', VALUE_DEFAULT, null, NULL_ALLOWED),
             'registrationdate' => new external_value(
                 PARAM_RAW,
@@ -72,8 +71,7 @@ class v1_provision_learner extends adapter_api {
      * @param string $email
      * @param string $firstname
      * @param string $lastname
-     * @param string|null $externalid
-     * @param string|null $payrollid
+     * @param string|null $payrollnumber
      * @param string|null $hcanumber
      * @param string|null $registrationdate
      * @param bool $createifmissing
@@ -87,8 +85,7 @@ class v1_provision_learner extends adapter_api {
         string $email = '',
         string $firstname = '',
         string $lastname = '',
-        ?string $externalid = null,
-        ?string $payrollid = null,
+        ?string $payrollnumber = null,
         ?string $hcanumber = null,
         ?string $registrationdate = null,
         bool $createifmissing = false,
@@ -101,8 +98,7 @@ class v1_provision_learner extends adapter_api {
             'email',
             'firstname',
             'lastname',
-            'externalid',
-            'payrollid',
+            'payrollnumber',
             'hcanumber',
             'registrationdate',
             'createifmissing',

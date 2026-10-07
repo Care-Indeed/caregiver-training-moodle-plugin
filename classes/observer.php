@@ -62,11 +62,11 @@ class observer {
         }
         $values = profile_fields::load((int) $binding->userid);
         $diverged = [];
-        if ((string) $values[profile_fields::EXTERNALID] !== (string) $binding->externalid) {
-            $diverged[] = 'externalid';
+        if ((string) $values[profile_fields::ALAYACAREID] !== (string) $binding->alayacareid) {
+            $diverged[] = 'alayacareid';
         }
-        if ((string) $values[profile_fields::PAYROLLID] !== (string) $binding->payrollid) {
-            $diverged[] = 'payrollid';
+        if ((string) $values[profile_fields::PAYROLLNUMBER] !== (string) $binding->payrollnumber) {
+            $diverged[] = 'payrollnumber';
         }
         if ($diverged) {
             exceptions::raise('profile_binding_divergence', ['key' => implode(',', $diverged), 'fields' => $diverged,

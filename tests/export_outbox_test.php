@@ -55,11 +55,11 @@ final class export_outbox_test extends \advanced_testcase {
         $this->fixture = $gen->create_annual_course();
         set_config('timepolicy', config::POLICY_NOMINAL, 'local_caregivertraining');
         set_config('nominaldurations', json_encode(array_fill_keys($this->fixture->cms, 4500)), 'local_caregivertraining');
-        $today = (new \DateTimeImmutable('now', config::timezone()))->format('Y-m-d');
+        $anniversary = (new \DateTimeImmutable('now', config::timezone()))->modify('+30 days')->format('Y-m-d');
         foreach (['a', 'b'] as $name) {
             $this->$name = $gen->create_learner();
             cycle_manager::upsert(['cycleid' => strtoupper($name) . '-2026', 'userid' => $this->$name->user->id,
-                'alayacareid' => $this->$name->alayacareid, 'opendate' => $today, 'duedate' => '2099-01-01']);
+                'alayacareid' => $this->$name->alayacareid, 'anniversarydate' => $anniversary]);
         }
         $gen->create_evidence($this->fixture, (int) $this->a->user->id);
         completion_manager::evaluate((int) cycle_manager::get('A-2026')->id);
@@ -87,7 +87,7 @@ final class export_outbox_test extends \advanced_testcase {
         $this->getDataGenerator()->role_assign('manager', $manager->id, \context_system::instance()->id);
         $this->setUser($manager);
         $columns = export::columns();
-        $byemployee = export::rows($this->a->binding->payrollid);
+        $byemployee = export::rows($this->a->binding->payrollnumber);
         $this->assertNotEmpty($byemployee);
         foreach ($byemployee as $row) {
             $this->assertCount(count($columns), $row);
@@ -205,6 +205,11 @@ final class export_outbox_test extends \advanced_testcase {
         $this->assertCount(2, $sent);
         $this->assertSame($sent[0]['headers']['X-CGT-Event-Id'], $sent[1]['headers']['X-CGT-Event-Id'], 'stable event id');
         foreach ($sent as $request) {
+            $this->assertSame('https://adapter.example.com/moodle/events', $request['url']);
+            $data = json_decode($request['body'], true)['data'];
+            $this->assertSame($this->a->alayacareid, $data['alayacareid']);
+            $this->assertSame((int) $this->a->user->id, $data['moodleuserid']);
+            $this->assertStringContainsString('/mod/customcert/verify_certificate.php?code=', $data['certificate']['verifyurl']);
             $this->assertStringNotContainsString('test-secret-not-real', $request['url'] . $request['body']);
             $expected = 'v1=' . hash_hmac(
                 'sha256',

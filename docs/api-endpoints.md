@@ -2,10 +2,14 @@
 
 This page documents every endpoint of `local_caregivertraining`:
 
-- The web service functions the integration adapter calls, and how they respond to common provisioning and cycle
-  scenarios.
+- The **REST API** the integration adapter calls: resource URLs, bearer tokens, JSON bodies and standard HTTP status
+  codes. This is the recommended interface.
+- The equivalent Moodle web service functions. They share the same fields and rules, and remain supported.
+- How both respond to common provisioning and cycle scenarios.
 - The signed `cycle.completed` event the plugin sends back to the adapter.
 - The browser pages, file downloads and CLI script used by administrators and learners.
+
+A machine-readable OpenAPI 3 description of the REST API is in [openapi.yaml](openapi.yaml).
 
 The adapter owns AlayaCare synchronization, eligibility and date calculations. The plugin never calls AlayaCare, so
 "not found" in this document always means "not found in Moodle".
@@ -14,6 +18,15 @@ The adapter owns AlayaCare synchronization, eligibility and date calculations. T
 
 | Endpoint | Kind | Used by | Purpose |
 | --- | --- | --- | --- |
+| `GET /v1/health` | REST | Adapter, monitoring | Configuration and queue health. |
+| `GET /v1/learners` | REST | Adapter | Search learners by AlayaCare id, payroll number, email or user id. |
+| `GET /v1/learners/{alayacareid}` | REST | Adapter | Get one learner. |
+| `PUT /v1/learners/{alayacareid}` | REST | Adapter | Create, link or update a learner. |
+| `GET /v1/cycles` | REST | Adapter | List cycles by Cycle ID or by modification time. |
+| `GET /v1/cycles/{cycleid}` | REST | Adapter | Get one cycle with its unmet completion requirements. |
+| `PUT /v1/cycles/{cycleid}` | REST | Adapter | Create, update or start an annual cycle. |
+| `PUT /v1/cycles/{cycleid}/access` | REST | Adapter | Apply employment, enrolment and reminder state. |
+| `POST /v1/cycles/{cycleid}/repair` | REST | Adapter | Re-evaluate completion and re-queue failed events. |
 | `local_caregivertraining_v1_get_binding` | Web service (read) | Adapter | Look up a learner without changing anything. |
 | `local_caregivertraining_v1_provision_learner` | Web service (write) | Adapter | Create, link or update a learner. |
 | `local_caregivertraining_v1_upsert_cycle` | Web service (write) | Adapter | Create, update or start an annual cycle. |
@@ -28,12 +41,22 @@ The adapter owns AlayaCare synchronization, eligibility and date calculations. T
 | `/pluginfile.php/{contextid}/local_caregivertraining/snapshotcert/…` | File download | Administrators, HR | Certificate PDFs preserved in snapshots. |
 | `cli/create_test_cycle.php` | CLI script | Developers, testers | Give a learner a test cycle without the adapter. |
 
+REST paths are relative to `{wwwroot}/local/caregivertraining/api.php`.
+
 ## Contents
 
-- [Calling the API](#calling-the-api)
-- [Error responses](#error-responses)
-- [Idempotency](#idempotency)
-- [Endpoints](#endpoints)
+- [Setup](#setup)
+- [REST API](#rest-api)
+  - [Base URL and authentication](#base-url-and-authentication)
+  - [Requests and responses](#requests-and-responses)
+  - [REST errors](#rest-errors)
+  - [REST idempotency](#rest-idempotency)
+  - [Routes](#routes)
+- [Moodle web service functions](#moodle-web-service-functions)
+  - [Calling the functions](#calling-the-functions)
+  - [Web service errors](#web-service-errors)
+  - [Web service idempotency](#web-service-idempotency)
+- [Function reference](#function-reference)
   - [`local_caregivertraining_v1_get_binding`](#local_caregivertraining_v1_get_binding)
   - [`local_caregivertraining_v1_provision_learner`](#local_caregivertraining_v1_provision_learner)
   - [`local_caregivertraining_v1_upsert_cycle`](#local_caregivertraining_v1_upsert_cycle)
@@ -52,20 +75,275 @@ The adapter owns AlayaCare synchronization, eligibility and date calculations. T
 - [Capabilities](#capabilities)
 - [Shared structures](#shared-structures)
 
-## Calling the API
+## Setup
 
-All adapter functions belong to the **Caregiver training adapter** external service
+Both the REST API and the web service functions use tokens for the **Caregiver training adapter** external service
 (`local_caregivertraining_adapter`). The service is disabled by default and restricted to authorised users.
 
-Setup:
-
-1. Enable web services and the REST protocol.
+1. Enable web services (Site administration > Advanced features). To also use the web service functions, enable the
+   REST protocol.
 2. Enable the `local_caregivertraining_adapter` service and add the adapter's service account as an authorised user.
 3. Give that account a system-level role with `local/caregivertraining:adapterapi`. No default role has this
    capability.
-4. Create a token for the account on that service.
+4. Create a token for the account on that service. The same token works for both interfaces.
 
-Requests are `POST` to the Moodle REST server:
+## REST API
+
+### Base URL and authentication
+
+```text
+{wwwroot}/local/caregivertraining/api.php/v1/...
+```
+
+For example `https://moodle.example.com/local/caregivertraining/api.php/v1/cycles/C-2026-5005`. If the web server
+doesn't pass the path after `api.php` to PHP, send it as a `route` parameter instead:
+`.../api.php?route=/v1/cycles/C-2026-5005`.
+
+Send the token in the `Authorization` header on every request. Tokens in the URL are not accepted.
+
+```http
+Authorization: Bearer {token}
+```
+
+The token must belong to the adapter service. A token for any other service is rejected with `403 wrongservice`.
+
+```sh
+curl -s "$MOODLE/local/caregivertraining/api.php/v1/health" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Requests and responses
+
+- `PUT` and `POST` bodies are JSON objects (`Content-Type: application/json`). Booleans are JSON `true`/`false`.
+- `GET` filters are query string parameters. Lists are comma-separated, for example `cycleids=C-1,C-2`.
+- Field names match the [function reference](#function-reference), so one set of field definitions covers both
+  interfaces. Identifiers in the URL path (`alayacareid`, `cycleid`) may also appear in the body, but must match.
+- Unknown fields are rejected with `400 invalidparameter`, and `details` lists the allowed fields.
+- Responses are JSON with `Cache-Control: no-store`.
+
+| Status | Meaning |
+| --- | --- |
+| `200 OK` | Success. |
+| `201 Created` | A learner or cycle was created. The `Location` header points to it. |
+| `400 Bad Request` | Missing, malformed or unexpected input. |
+| `401 Unauthorized` | Missing, unknown or expired token. |
+| `403 Forbidden` | The token is valid but not allowed: wrong service, user not authorised on the service, or missing capability. |
+| `404 Not Found` | The learner, cycle or route doesn't exist. |
+| `405 Method Not Allowed` | The path exists but not for this method. The `Allow` header lists the valid methods. |
+| `409 Conflict` | The request clashes with existing data, or reuses an idempotency key with different content. |
+| `500 Internal Server Error` | Unexpected failure. Details are logged on the server, not returned. |
+| `503 Service Unavailable` | Plugin not configured, site in maintenance, or a learner lock timed out. Retry after the `Retry-After` seconds. |
+
+### REST errors
+
+Errors use one shape, based on [AlayaCare's error responses](https://developer.alayacare.com/reference/get_accounts):
+
+```json
+{
+  "code": 409,
+  "error": "cycleconflict",
+  "message": "Cycle conflict: learner has active cycle C-2026-5005; send supersedescycleid to replace it",
+  "details": "Optional extra detail"
+}
+```
+
+| Field | Description |
+| --- | --- |
+| `code` | HTTP status code, repeated in the body. |
+| `error` | Stable machine-readable code. Branch on this. |
+| `message` | Human-readable explanation. |
+| `details` | Present when there is more to say, for example which parameter failed validation and why. |
+
+| Status | `error` | Meaning |
+| --- | --- | --- |
+| 400 | `invalidparameter` | A parameter is missing, has the wrong type, fails a format check or isn't allowed on this route. Also used for a missing `Idempotency-Key` header and invalid JSON. `details` explains which. |
+| 400 | `invalidemail` | The email address is not valid. |
+| 400 | `invaliddate` | A date is not a real `YYYY-MM-DD` calendar date. |
+| 401 | `unauthorized` | No `Authorization: Bearer` header. |
+| 401 | `invalidtoken` | The token doesn't exist. |
+| 403 | `accessexception` | Token expired, web services disabled, service disabled, IP not allowed, or the user isn't authorised on the service. `details` says which. |
+| 403 | `wrongservice` | The token belongs to a different web service. |
+| 403 | `nopermissions` | The token's user lacks `local/caregivertraining:adapterapi`. |
+| 404 | `routenotfound` | No endpoint matches the method and path. |
+| 404 | `learnernotfound` | No learner is bound to this AlayaCare id. |
+| 404 | `bindingmismatch` | The `userid` and `alayacareid` don't match an existing binding. |
+| 404 | `usernotfound` | The Moodle user doesn't exist, is deleted, or can't be linked (guest or site admin). |
+| 404 | `cyclenotfound` | No cycle has this Cycle ID, or it belongs to another learner. |
+| 405 | `methodnotallowed` | Wrong method for this path. |
+| 409 | `existingaccount` | An unbound Moodle account already uses this email. |
+| 409 | `ambiguousemail` | More than one Moodle account uses this email. |
+| 409 | `usernametaken` | The username derived from the email belongs to another account. |
+| 409 | `bindingconflict` | The request would bind an employee, user, payroll number or email to two different people. |
+| 409 | `cycleconflict` | The cycle clashes with another cycle (see `message`). |
+| 409 | `cycleimmutable` | The cycle is completed or superseded and its dates can't change. |
+| 409 | `alreadycompleted` | A new Cycle ID has the same anniversary date as one of the learner's completed cycles. |
+| 409 | `idempotencyconflict` | The idempotency key was already used with a different request. |
+| 500 | `internalerror` (or another code) | Unexpected failure. |
+| 503 | `notconfigured`, `sitemaintenance`, `locktimeout` | Temporarily unable to process. Safe to retry. |
+
+Every identity or cycle conflict is also recorded as an exception for HR or Engineering review on the plugin's
+[administrator view](#indexphp-administrator-view).
+
+### REST idempotency
+
+Every `PUT` requires an `Idempotency-Key` header: 1-128 characters of `[A-Za-z0-9._:-]`, unique per logical request.
+
+```http
+Idempotency-Key: prov-5005-20261002-1
+```
+
+- Repeating a key with an identical request returns the stored response, with `"replayed": true` in the body. Nothing
+  runs again.
+- Repeating a key with a different request fails with `409 idempotencyconflict`.
+- Errors are not stored. A request that failed can be retried with the same key once the cause is fixed.
+
+`POST /v1/cycles/{cycleid}/repair` is safe to repeat and doesn't need a key.
+
+### Routes
+
+| Method and path | Success | Calls | Notes |
+| --- | --- | --- | --- |
+| `GET /v1/health` | 200 | [`v1_health`](#local_caregivertraining_v1_health) | No parameters. |
+| `GET /v1/learners` | 200 | [`v1_get_binding`](#local_caregivertraining_v1_get_binding) | At least one filter. |
+| `GET /v1/learners/{alayacareid}` | 200, 404 | [`v1_get_binding`](#local_caregivertraining_v1_get_binding) | Returns one [binding](#binding). |
+| `PUT /v1/learners/{alayacareid}` | 201, 200, 404 | [`v1_provision_learner`](#local_caregivertraining_v1_provision_learner) | Requires `Idempotency-Key`. |
+| `GET /v1/cycles` | 200 | [`v1_reconcile`](#local_caregivertraining_v1_reconcile) | Read only, no repair. |
+| `GET /v1/cycles/{cycleid}` | 200, 404 | [`v1_reconcile`](#local_caregivertraining_v1_reconcile) | Returns one [cycle](#cycle) with `gates`. |
+| `PUT /v1/cycles/{cycleid}` | 201, 200 | [`v1_upsert_cycle`](#local_caregivertraining_v1_upsert_cycle) | Requires `Idempotency-Key`. |
+| `PUT /v1/cycles/{cycleid}/access` | 200 | [`v1_update_access`](#local_caregivertraining_v1_update_access) | Requires `Idempotency-Key`. |
+| `POST /v1/cycles/{cycleid}/repair` | 200, 404 | [`v1_reconcile`](#local_caregivertraining_v1_reconcile) with `repair` | Empty body. |
+
+The linked function sections describe each field and the full set of rules. The sections below cover what is
+specific to REST.
+
+#### `GET /v1/health`
+
+Returns the [health fields](#local_caregivertraining_v1_health) unchanged. Use it for monitoring: `problems` is empty
+when the plugin is fully configured.
+
+#### `GET /v1/learners`
+
+Query parameters: `alayacareid`, `payrollnumber`, `email`, `userid`. At least one is required.
+
+```sh
+curl -s "$MOODLE/local/caregivertraining/api.php/v1/learners?payrollnumber=PR-5005" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+```json
+{
+  "status": "bound",
+  "count": 1,
+  "items": [{
+    "bindingid": 12, "userid": 345, "alayacareid": "5005", "payrollnumber": "PR-5005",
+    "hcanumber": "", "registrationdate": "", "status": "active",
+    "matchedby": "payrollnumber"
+  }],
+  "candidates": []
+}
+```
+
+`status` is `bound`, `candidate`, `ambiguous`, `conflict` or `none`, as described for
+[`v1_get_binding`](#local_caregivertraining_v1_get_binding). A search with no matches is still `200` with
+`"status": "none"`.
+
+#### `GET /v1/learners/{alayacareid}`
+
+Returns the learner's [binding](#binding) (without `matchedby`), or `404 learnernotfound`.
+
+#### `PUT /v1/learners/{alayacareid}`
+
+Creates, links or updates the learner bound to `{alayacareid}`. Body fields: `userid`, `email`, `firstname`,
+`lastname`, `payrollnumber`, `hcanumber`, `registrationdate`, `createifmissing`, `sendactivation`.
+
+```sh
+curl -s -X PUT "$MOODLE/local/caregivertraining/api.php/v1/learners/5005" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Idempotency-Key: prov-5005-1" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "riley@example.com", "firstname": "Riley", "lastname": "Synthetic",
+       "payrollnumber": "PR-5005", "createifmissing": true, "sendactivation": true}'
+```
+
+```http
+HTTP/1.1 201 Created
+Location: https://moodle.example.com/local/caregivertraining/api.php/v1/learners/5005
+```
+
+```json
+{"status": "created", "userid": 345, "bindingid": 12, "activation": "queued", "replayed": false}
+```
+
+| Outcome | Status | Body |
+| --- | --- | --- |
+| Account created | `201` | `"status": "created"` |
+| Existing account linked through `userid` | `200` | `"status": "linked"` |
+| Already provisioned | `200` | `"status": "updated"` or `"unchanged"` |
+| Nothing matches and `createifmissing` is `false` or omitted | `404` | `learnernotfound`, with a hint in `details` |
+| Duplicate or conflicting identity | `409` | See [scenario 2](#2-provision-a-duplicate-student). |
+
+#### `GET /v1/cycles`
+
+Query parameters: `cycleids` (comma-separated), `modifiedsince` (Unix time), `limit` (1-500, default 100).
+
+```sh
+curl -s "$MOODLE/local/caregivertraining/api.php/v1/cycles?modifiedsince=1790000000&limit=200" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+```json
+{"count": 1, "items": [{"cycleid": "C-2026-5005", "status": "open", "gates": ["course_not_complete"], "...": "..."}],
+ "servertime": 1790003600}
+```
+
+`items` are [cycles](#cycle) with `gates`. To poll for changes, send the previous response's `servertime` as the next
+`modifiedsince`.
+
+#### `GET /v1/cycles/{cycleid}`
+
+Returns one [cycle](#cycle) with `gates`, or `404 cyclenotfound`.
+
+#### `PUT /v1/cycles/{cycleid}`
+
+Creates, updates or starts the cycle. Body fields: `userid`, `alayacareid`, `hiredate`, `anniversarydate`,
+`supersedescycleid`. The adapter sends only the anniversary date. The plugin works out the open date and the end
+of access from it (see [the window rules](#local_caregivertraining_v1_upsert_cycle)).
+
+```sh
+curl -s -X PUT "$MOODLE/local/caregivertraining/api.php/v1/cycles/C-2026-5005" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Idempotency-Key: cyc-C-2026-5005-1" \
+  -H "Content-Type: application/json" \
+  -d '{"userid": 345, "alayacareid": "5005", "hiredate": "2021-03-15", "anniversarydate": "2027-03-15"}'
+```
+
+Returns `201` with `"action": "created"`, or `200` with `"action": "updated"` or `"unchanged"`. The body also holds
+the resulting `cycle`. Errors are covered in scenarios [4](#4-cycle-already-started-or-in-progress),
+[5](#5-cycle-when-the-student-is-not-found) and [6](#6-cycle-when-the-student-already-finished-the-annual-training).
+
+#### `PUT /v1/cycles/{cycleid}/access`
+
+Body fields: `userid`, `alayacareid`, `employmentstatus`, `enrolmentstatus`, `remindersenabled`.
+`remindersenabled` may be `true`, `false`, or omitted (or `null`) to leave it unchanged.
+
+```json
+{"userid": 345, "alayacareid": "5005", "employmentstatus": "leave", "enrolmentstatus": "suspended",
+ "remindersenabled": false}
+```
+
+Returns `200` with `cycle` and `policygates`.
+
+#### `POST /v1/cycles/{cycleid}/repair`
+
+No body. Re-evaluates completion for an open cycle. For a completed cycle, it recreates missing side effects and
+re-queues failed events. Returns the updated [cycle](#cycle) with `gates`, or `404 cyclenotfound`.
+
+## Moodle web service functions
+
+### Calling the functions
+
+The functions are Moodle's standard web service interface. New integrations should use the [REST API](#rest-api),
+which calls the same code. Requests are `POST` to Moodle's web service endpoint:
 
 ```http
 POST {wwwroot}/webservice/rest/server.php
@@ -84,67 +362,56 @@ curl -s "$MOODLE/webservice/rest/server.php" \
   -d wsfunction=local_caregivertraining_v1_health
 ```
 
-## Error responses
+### Web service errors
 
-Moodle reports errors in the response body. Check for an `exception` key instead of relying on the HTTP status code.
+Moodle reports web service errors in the response body. Check for an `exception` key instead of relying on the HTTP
+status code.
 
 ```json
 {
   "exception": "moodle_exception",
-  "errorcode": "cycleconflict",
+  "errorcode": "error:cycleconflict",
   "message": "Cycle conflict: learner has active cycle C-2026-5005; send supersedescycleid to replace it"
 }
 ```
 
-Branch on `errorcode`. For `bindingconflict` and `cycleconflict`, the `message` also explains which rule was broken.
+Branch on `errorcode`. The plugin's own codes carry an `error:` prefix. Core Moodle codes (`invalidparameter`,
+`nopermissions`, `locktimeout`, `invalidtoken`) don't. Apart from the prefix, the codes and meanings are the same as
+in the [REST error table](#rest-errors).
 
-Parameter validation errors (`invalid_parameter_exception`) always return `errorcode` `invalidparameter` and a
-generic message. The detailed reason, such as `alayacareid must be 1-64 characters of [A-Za-z0-9._-]`, appears in
-`debuginfo` only when Moodle debugging is enabled.
-
-| `errorcode` | Meaning |
+| `errorcode` | REST equivalent |
 | --- | --- |
-| `invalidparameter` | A parameter is missing, has the wrong type or fails a format check. |
-| `nopermissions` | The token's user lacks `local/caregivertraining:adapterapi`. |
-| `notconfigured` | The annual course, manual enrolment or another required setting is missing. |
-| `idempotencyconflict` | The idempotency key was already used with different parameters. |
-| `locktimeout` | Another request for the same learner held the lock for too long. Safe to retry. |
-| `invalidemail` | The email address is not valid. |
-| `existingaccount` | An unbound Moodle account already uses this email. |
-| `ambiguousemail` | More than one Moodle account uses this email. |
-| `usernametaken` | The username derived from the email belongs to another account. |
-| `usernotfound` | The Moodle user doesn't exist, is deleted, or can't be linked (guest or site admin). |
-| `bindingconflict` | The request would bind an employee, user, External ID, payroll number or email to two different people. |
-| `bindingmismatch` | The `userid` and `alayacareid` don't match an existing binding. |
-| `invaliddate` | A date is not a real `YYYY-MM-DD` calendar date. |
-| `dateorder` | `opendate` is after `duedate`. |
-| `cycleconflict` | The cycle clashes with another cycle (see the message). |
-| `cycleimmutable` | The cycle is completed or superseded and its dates can't change. |
-| `cyclenotfound` | No cycle with this Cycle ID belongs to the learner. |
+| `invalidparameter`, `error:invalidemail`, `error:invaliddate` | 400 |
+| `invalidtoken` | 401 |
+| `nopermissions`, `accessexception` | 403 |
+| `error:bindingmismatch`, `error:usernotfound`, `error:cyclenotfound` | 404 |
+| `error:existingaccount`, `error:ambiguousemail`, `error:usernametaken`, `error:bindingconflict`, `error:cycleconflict`, `error:cycleimmutable`, `error:alreadycompleted`, `error:idempotencyconflict` | 409 |
+| `error:notconfigured`, `locktimeout` | 503 |
 
-Every identity or cycle conflict is also recorded as an exception for HR or Engineering review on the plugin's admin
-page.
+Parameter validation errors always return `invalidparameter` with a generic message. Unlike the REST API, the
+detailed reason (for example `alayacareid must be 1-64 characters of [A-Za-z0-9._-]`) appears in `debuginfo` only
+when Moodle debugging is enabled.
 
-## Idempotency
+### Web service idempotency
 
-`provision_learner`, `upsert_cycle` and `update_access` require an `idempotencykey`: 1-128 characters of
-`[A-Za-z0-9._:-]`, unique per logical request.
+`provision_learner`, `upsert_cycle` and `update_access` require an `idempotencykey` parameter with the same rules as
+the [REST `Idempotency-Key` header](#rest-idempotency). Keys are stored per function, so a key used through REST
+replays through the matching web service function and vice versa.
 
-- Repeating a key with identical parameters returns the stored response with `"replayed": true`. Nothing runs again.
-- Repeating a key with different parameters fails with `idempotencyconflict`.
-- Errors are not stored. A request that failed can be retried with the same key once the cause is fixed.
+## Function reference
 
-## Endpoints
+The adapter functions below are what the REST routes call. Parameter and response fields are the same in both
+interfaces.
 
-| Function | Type | Purpose |
-| --- | --- | --- |
-| `local_caregivertraining_v1_get_binding` | read | Look up a learner without changing anything. |
-| `local_caregivertraining_v1_provision_learner` | write | Create, link or update a learner. |
-| `local_caregivertraining_v1_upsert_cycle` | write | Create, update or start an annual cycle. |
-| `local_caregivertraining_v1_update_access` | write | Apply employment, enrolment and reminder state to a cycle. |
-| `local_caregivertraining_v1_reconcile` | write | Read authoritative cycle state and optionally repair it. |
-| `local_caregivertraining_v1_health` | read | Configuration and queue health. |
-| `local_caregivertraining_v1_record_heartbeat` | write | Browser time tracking (not part of the adapter service). |
+| Function | Type | REST route | Purpose |
+| --- | --- | --- | --- |
+| `local_caregivertraining_v1_get_binding` | read | `GET /v1/learners`, `GET /v1/learners/{alayacareid}` | Look up a learner without changing anything. |
+| `local_caregivertraining_v1_provision_learner` | write | `PUT /v1/learners/{alayacareid}` | Create, link or update a learner. |
+| `local_caregivertraining_v1_upsert_cycle` | write | `PUT /v1/cycles/{cycleid}` | Create, update or start an annual cycle. |
+| `local_caregivertraining_v1_update_access` | write | `PUT /v1/cycles/{cycleid}/access` | Apply employment, enrolment and reminder state to a cycle. |
+| `local_caregivertraining_v1_reconcile` | write | `GET /v1/cycles`, `GET /v1/cycles/{cycleid}`, `POST /v1/cycles/{cycleid}/repair` | Read authoritative cycle state and optionally repair it. |
+| `local_caregivertraining_v1_health` | read | `GET /v1/health` | Configuration and queue health. |
+| `local_caregivertraining_v1_record_heartbeat` | write | None | Browser time tracking (not part of the adapter service). |
 
 ### `local_caregivertraining_v1_get_binding`
 
@@ -153,8 +420,7 @@ Read-only lookup the adapter should call before provisioning. At least one field
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `alayacareid` | string | no | Canonical AlayaCare employee id. |
-| `externalid` | string | no | AlayaCare External ID. |
-| `payrollid` | string | no | Employee ID or payroll number. |
+| `payrollnumber` | string | no | Payroll number. |
 | `email` | string | no | Email. Used to find bound learners and unbound candidate accounts. |
 | `userid` | int | no | Moodle user id. |
 
@@ -170,9 +436,9 @@ Response:
 {
   "status": "bound",
   "bindings": [{
-    "bindingid": 12, "userid": 345, "alayacareid": "5005", "externalid": "EXT-5005",
-    "payrollid": "PR-5005", "hcanumber": "", "registrationdate": "", "status": "active",
-    "matchedby": "alayacareid,externalid"
+    "bindingid": 12, "userid": 345, "alayacareid": "5005", "payrollnumber": "PR-5005",
+    "hcanumber": "", "registrationdate": "", "status": "active",
+    "matchedby": "alayacareid,payrollnumber"
   }],
   "candidates": []
 }
@@ -185,14 +451,13 @@ fields. It never links an account by email on its own, and never creates an acco
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
-| `idempotencykey` | string | yes | See [Idempotency](#idempotency). |
+| `idempotencykey` | string | yes | Web service only; REST uses the `Idempotency-Key` header. See [Web service idempotency](#web-service-idempotency). |
 | `alayacareid` | string | yes | Canonical immutable employee id, 1-64 characters of `[A-Za-z0-9._-]`. |
 | `userid` | int | no | Existing Moodle user to link. This is the explicit confirmation that an account belongs to this employee. |
 | `email` | string | no | Required when creating. Also used to detect existing accounts. |
 | `firstname` | string | no | Required when creating. |
 | `lastname` | string | no | Required when creating. |
-| `externalid` | string or null | no | AlayaCare External ID. `null` leaves it unchanged, `""` clears it. |
-| `payrollid` | string or null | no | Payroll number. `null` leaves it unchanged, `""` clears it. |
+| `payrollnumber` | string or null | no | Payroll number. `null` leaves it unchanged, `""` clears it. |
 | `hcanumber` | string or null | no | HCA number. `null` leaves it unchanged, `""` clears it. |
 | `registrationdate` | string or null | no | HCA registration date, `YYYY-MM-DD`. |
 | `createifmissing` | bool | no, default `false` | Create an account when nothing matches. |
@@ -210,7 +475,7 @@ Response:
 
 How the request is resolved:
 
-1. If `externalid` or `payrollid` is already bound to a **different** employee, fail with `bindingconflict`.
+1. If `payrollnumber` is already bound to a **different** employee, fail with `bindingconflict`.
 2. If `alayacareid` is already bound:
    - If `userid` is given and differs from the bound user, fail with `bindingconflict`.
    - If the bound user was deleted, fail with `usernotfound`.
@@ -229,20 +494,30 @@ How the request is resolved:
      `created`. Missing `email`, `firstname` or `lastname` fails with `invalidparameter`. A username clash fails with
      `usernametaken`.
 
+The `alayacareid` is also copied into the learner's locked **AlayaCare ID** profile field (`cgt_alayacareid`), so it
+shows on the profile and can be searched by administrators.
+
 ### `local_caregivertraining_v1_upsert_cycle`
 
-Idempotently creates, updates or starts an annual cycle. Dates are calculated by the adapter and interpreted in the
-plugin's compliance timezone: `opendate` starts at 00:00 and `duedate` ends at 23:59:59.
+Idempotently creates, updates or starts an annual cycle. The adapter sends the AlayaCare anniversary date, which is
+the due date. The plugin derives the rest of the window in its compliance timezone:
+
+| Moment | Rule | Cycle field |
+| --- | --- | --- |
+| Window opens | 00:00 on the anniversary minus 60 days | `timeopen` |
+| Due | 23:59:59 on the anniversary | `timedue` |
+| Access ends | 23:59:59 on the anniversary plus 14 days | `timeaccessend` |
+
+For example, an anniversary of `2027-03-15` opens on `2027-01-14` and access ends on `2027-03-29`.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
-| `idempotencykey` | string | yes | See [Idempotency](#idempotency). |
+| `idempotencykey` | string | yes | Web service only; REST uses the `Idempotency-Key` header. See [Web service idempotency](#web-service-idempotency). |
 | `cycleid` | string | yes | Adapter-supplied unique Cycle ID, 1-100 characters of `[A-Za-z0-9._:-]`. |
 | `userid` | int | yes | Moodle user id. |
 | `alayacareid` | string | yes | Employee id that must already be bound to `userid`. |
 | `hiredate` | string | no | `YYYY-MM-DD`, stored for reference. |
-| `opendate` | string | yes | Window open date, `YYYY-MM-DD`. |
-| `duedate` | string | yes | Due date, `YYYY-MM-DD`. Must be on or after `opendate`. |
+| `anniversarydate` | string | yes | AlayaCare anniversary date this cycle is due on, `YYYY-MM-DD`. |
 | `supersedescycleid` | string | no | Active cycle this one replaces, for example after a rehire. |
 
 Response:
@@ -257,23 +532,25 @@ Behaviour:
 
 - **The binding is checked first.** If `alayacareid` isn't bound, or is bound to a different user, the call fails with
   `bindingmismatch`. If the binding exists but the user was deleted, it fails with `usernotfound`.
-- **New Cycle ID.** The call fails with `cycleconflict` when the learner already has an active cycle (`scheduled`,
+- **New Cycle ID.** The call fails with `alreadycompleted` when one of the learner's completed cycles has the same
+  anniversary date. It fails with `cycleconflict` when the learner already has an active cycle (`scheduled`,
   `open` or `blocked`):
-  - If that cycle has the same due date: `cycle {id} already covers due date {date}`.
+  - If that cycle has the same anniversary date: `cycle {id} already covers anniversary date {date}`.
   - Otherwise: `learner has active cycle {id}; send supersedescycleid to replace it`.
   - If `supersedescycleid` names an active cycle, the new cycle is created and the old one becomes `superseded`. If
     it doesn't name an active cycle of this learner, the call fails with `cycleconflict`.
 - **Existing Cycle ID.**
   - If it belongs to another learner, fail with `cycleconflict` (`cycleid belongs to another learner`).
-  - If the cycle is `completed` or `superseded`, identical dates return `unchanged` and different dates fail with
-    `cycleimmutable`.
-  - Otherwise identical dates return `unchanged`, and new dates are saved and return `updated`. This includes cycles
-    that are already `open`.
+  - If the cycle is `completed` or `superseded`, an identical `anniversarydate` and `hiredate` return `unchanged`, and
+    different values fail with `cycleimmutable`.
+  - Otherwise identical values return `unchanged`, and new values are saved (with the window recalculated) and return
+    `updated`. This includes cycles that are already `open`.
 - **Starting.** A `scheduled` cycle whose open date has arrived starts immediately. Otherwise the scheduled task
   starts it on the open date. Starting snapshots and resets any earlier progress in the annual course. If the snapshot
   or reset fails, the cycle becomes `blocked` and the learner's progress is left untouched.
-- **Enrolment.** The learner is enrolled in the annual course from the open date with no end date. Overdue cycles stay
-  open.
+- **Enrolment.** The learner is enrolled in the annual course from the open date until the access end (14 days after
+  the due date). An overdue cycle stays `open` and the learner keeps access until then. After that the enrolment has
+  ended and the cycle reports `overdue` until it is completed or superseded.
 
 ### `local_caregivertraining_v1_update_access`
 
@@ -281,7 +558,7 @@ Applies employment, enrolment and reminder state that the adapter has decided on
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
-| `idempotencykey` | string | yes | See [Idempotency](#idempotency). |
+| `idempotencykey` | string | yes | Web service only; REST uses the `Idempotency-Key` header. See [Web service idempotency](#web-service-idempotency). |
 | `cycleid` | string | yes | Cycle ID. |
 | `userid` | int | yes | Moodle user id. |
 | `alayacareid` | string | yes | Employee id bound to `userid`. |
@@ -364,124 +641,137 @@ The server decides how much time to credit using its own clock. The response inc
 
 ## Scenario reference
 
+Each scenario shows the REST request and result. The web service function behaves the same way, returning the same
+error code with an `error:` prefix (see [Web service errors](#web-service-errors)).
+
 ### 1. Provision a new student
 
-**Supported.** Call `provision_learner` with `createifmissing=true`, plus `email`, `firstname` and `lastname`.
+**Supported.** Send `PUT /v1/learners/{alayacareid}` with `"createifmissing": true`, plus `email`, `firstname` and
+`lastname`.
 
-```text
-wsfunction=local_caregivertraining_v1_provision_learner
-idempotencykey=prov-5005-1
-alayacareid=5005
-email=riley@example.com
-firstname=Riley
-lastname=Synthetic
-externalid=EXT-5005
-payrollid=PR-5005
-createifmissing=1
-sendactivation=1
+```http
+PUT /local/caregivertraining/api.php/v1/learners/5005
+Authorization: Bearer {token}
+Idempotency-Key: prov-5005-1
+Content-Type: application/json
+
+{"email": "riley@example.com", "firstname": "Riley", "lastname": "Synthetic",
+ "payrollnumber": "PR-5005", "createifmissing": true, "sendactivation": true}
 ```
 
-```json
+```http
+HTTP/1.1 201 Created
+Location: https://moodle.example.com/local/caregivertraining/api.php/v1/learners/5005
+
 {"status": "created", "userid": 345, "bindingid": 12, "activation": "queued", "replayed": false}
 ```
 
-If a Moodle account already exists for the person, the call fails with `existingaccount` instead of creating a
-duplicate. Repeat it with `userid` to link that account, which returns `"status": "linked"`.
+If a Moodle account already uses the email, the request fails with `409 existingaccount` instead of creating a
+duplicate. Once you've confirmed it's the same person, repeat the request with `"userid"` (and a new idempotency
+key) to link that account. That returns `200` with `"status": "linked"`.
+
+Web service: `local_caregivertraining_v1_provision_learner` with `createifmissing=1`.
 
 ### 2. Provision a duplicate student
 
-**Supported.** No call path creates a second account or binding for the same person. What you get back depends on
-what is duplicated:
+**Supported.** No request creates a second account or binding for the same person. What you get back depends on what
+is duplicated:
 
-| Situation | Result |
-| --- | --- |
-| Same idempotency key and parameters | Stored response returned with `"replayed": true`. |
-| Same idempotency key, different parameters | `idempotencyconflict` |
-| `alayacareid` already provisioned (new key) | `"status": "unchanged"`, or `"updated"` if details changed. No new account. |
-| `alayacareid` already bound to a different `userid` than requested | `bindingconflict`: `employee is bound to a different Moodle user` |
-| Requested `userid` is already bound to another employee | `bindingconflict`: `Moodle user is bound to a different employee` |
-| `externalid` or `payrollid` already belongs to another employee | `bindingconflict`: `externalid is bound to another employee` (or `payrollid`) |
-| One unbound account already uses the email | `existingaccount`. The message includes that account's id. |
-| Several accounts use the email | `ambiguousemail` |
-| Username derived from the email is taken | `usernametaken` |
-| Email change collides with another account | `bindingconflict`: `email belongs to another account` |
+| Situation | Status | Result |
+| --- | --- | --- |
+| Same idempotency key and body | Original status | Stored response with `"replayed": true`. |
+| Same idempotency key, different body | `409` | `idempotencyconflict` |
+| `alayacareid` already provisioned (new key) | `200` | `"status": "unchanged"`, or `"updated"` if details changed. No new account. |
+| `alayacareid` already bound to a different `userid` than requested | `409` | `bindingconflict`: `employee is bound to a different Moodle user` |
+| Requested `userid` is already bound to another employee | `409` | `bindingconflict`: `Moodle user is bound to a different employee` |
+| `payrollnumber` already belongs to another employee | `409` | `bindingconflict`: `payrollnumber is bound to another employee` |
+| One unbound account already uses the email | `409` | `existingaccount`. The message includes that account's id. |
+| Several accounts use the email | `409` | `ambiguousemail` |
+| Username derived from the email is taken | `409` | `usernametaken` |
+| Email change collides with another account | `409` | `bindingconflict`: `email belongs to another account` |
 
-Call `get_binding` first to see what matches. A `status` of `candidate`, `ambiguous` or `conflict` means a duplicate
-needs review before provisioning.
+Check first with `GET /v1/learners?alayacareid=...&email=...`. A `status` of `candidate`, `ambiguous` or `conflict`
+means a duplicate needs review before provisioning.
 
-### 3. Provision when the AlayaCare External ID is not found
+### 3. Provision when the AlayaCare ID is not found
 
 **Supported, with caveats.** The plugin has no AlayaCare data, so "not found" means no Moodle learner is bound to the
 id.
 
-- `get_binding` with `alayacareid` or `externalid` returns `"status": "none"` with empty `bindings` and
-  `candidates`.
-- `provision_learner` with `createifmissing=false` returns this when nothing matches, without changing data:
+| Request | Status | Result |
+| --- | --- | --- |
+| `GET /v1/learners/{alayacareid}` | `404` | `learnernotfound` |
+| `GET /v1/learners?alayacareid={id}` | `200` | `"status": "none"`, `"count": 0`, empty `items` and `candidates`. |
+| `PUT /v1/learners/{alayacareid}` without `createifmissing` | `404` | `learnernotfound`. Nothing changes, and `details` explains how to create or link the learner. |
+| `PUT /v1/learners/{alayacareid}` with `"createifmissing": true` | `201` | The learner is created. |
 
-  ```json
-  {"status": "notfound", "userid": 0, "bindingid": 0, "activation": "notrequested", "replayed": false}
-  ```
-
-- With `createifmissing=true`, the same request creates the learner instead.
+```json
+{
+  "code": 404,
+  "error": "learnernotfound",
+  "message": "No Moodle learner is bound to AlayaCare id 5005.",
+  "details": "Send \"createifmissing\": true with email, firstname and lastname to create the learner, or \"userid\" to link an existing account."
+}
+```
 
 Caveats:
 
-- `provision_learner` matches only on `alayacareid`, `userid` and `email`. `externalid` and `payrollid` are stored
-  attributes and are only checked for conflicts with other employees. To find a learner by External ID, use
-  `get_binding`.
-- A missing or malformed `alayacareid` fails with `invalidparameter`. The detailed reason is only visible with
-  debugging enabled.
+- Provisioning matches only on `alayacareid`, `userid` and `email`. `payrollnumber` is a stored attribute and is only
+  checked for conflicts with other employees. To find a learner by payroll number, use
+  `GET /v1/learners?payrollnumber=...`.
+- A malformed `alayacareid` fails with `400 invalidparameter`, and `details` gives the allowed format.
+- The web service function returns `"status": "notfound"` (not an error) where REST returns `404`.
 - An employee who doesn't exist in AlayaCare must be caught by the adapter. The plugin can't detect it.
 
 ### 4. Cycle already started or in progress
 
-**Supported.** The result of `upsert_cycle` depends on the Cycle ID:
+**Supported.** The result of `PUT /v1/cycles/{cycleid}` depends on the Cycle ID:
 
-| Situation | Result |
-| --- | --- |
-| Same `cycleid`, same dates | `"action": "unchanged"` with the current cycle (`status` `open`, `scheduled` or `blocked`). |
-| Same `cycleid`, new dates, not yet completed | `"action": "updated"`. The new dates apply even if the cycle is already open. |
-| New `cycleid`, learner has an active cycle with the same due date | `cycleconflict`: `cycle C-… already covers due date 2026-12-31` |
-| New `cycleid`, learner has a different active cycle | `cycleconflict`: `learner has active cycle C-…; send supersedescycleid to replace it` |
-| New `cycleid` with `supersedescycleid` set to the active cycle | `"action": "created"`, and the old cycle becomes `superseded`. |
-| Two concurrent creates for the same learner | One succeeds. The other fails with `cycleconflict`: `concurrent cycle creation`. |
+| Situation | Status | Result |
+| --- | --- | --- |
+| Same `cycleid`, same `anniversarydate` | `200` | `"action": "unchanged"` with the current cycle (`status` `open`, `scheduled` or `blocked`). |
+| Same `cycleid`, new `anniversarydate`, not yet completed | `200` | `"action": "updated"`. The recalculated window applies even if the cycle is already open. |
+| New `cycleid`, learner has an active cycle with the same anniversary date | `409` | `cycleconflict`: `cycle C-… already covers anniversary date 2027-03-15` |
+| New `cycleid`, learner has a different active cycle | `409` | `cycleconflict`: `learner has active cycle C-…; send supersedescycleid to replace it` |
+| New `cycleid` with `supersedescycleid` set to the active cycle | `201` | `"action": "created"`, and the old cycle becomes `superseded`. |
+| Two concurrent creates for the same learner | `409` | One succeeds. The other fails with `cycleconflict`: `concurrent cycle creation`. |
 
-Every case in this table shares the `cycleconflict` error code, so the adapter has to read `message` to tell them
-apart.
+Every conflict in this table shares the `cycleconflict` code, so the adapter has to read `message` to tell them apart.
+To see the learner's current cycle, use `GET /v1/cycles/{cycleid}`.
 
 ### 5. Cycle when the student is not found
 
-**Supported.** `upsert_cycle` and `update_access` check the binding before anything else:
+**Supported.** `PUT /v1/cycles/{cycleid}` and `PUT /v1/cycles/{cycleid}/access` check the binding before anything
+else:
 
-| Situation | Result |
-| --- | --- |
-| `alayacareid` not provisioned, or bound to a different `userid` | `bindingmismatch` |
-| `userid` doesn't exist in Moodle | `bindingmismatch` (there is no binding for that user) |
-| Binding exists but the Moodle user was deleted | `usernotfound` |
-| `update_access` with an unknown Cycle ID, or one belonging to another learner | `cyclenotfound` |
+| Situation | Status | Result |
+| --- | --- | --- |
+| `alayacareid` not provisioned, or bound to a different `userid` | `404` | `bindingmismatch` |
+| `userid` doesn't exist in Moodle | `404` | `bindingmismatch` (there is no binding for that user) |
+| Binding exists but the Moodle user was deleted | `404` | `usernotfound` |
+| `PUT .../access` with an unknown Cycle ID, or one belonging to another learner | `404` | `cyclenotfound` |
+| `GET /v1/cycles/{cycleid}` with an unknown Cycle ID | `404` | `cyclenotfound` |
 
 Provision the learner first, then create the cycle.
 
 ### 6. Cycle when the student already finished the annual training
 
-**Supported for the same cycle. Partly supported across cycles.**
+**Supported.**
 
-| Situation | Result |
-| --- | --- |
-| Same `cycleid` as a completed cycle, same dates | `"action": "unchanged"` with `"status": "completed"`, `"compliance": "complete"`, `timecompleted` and `certificatecode`. |
-| Same `cycleid` as a completed cycle, different dates | `cycleimmutable`: `Cycle C-… is final and cannot be changed.` |
-| New `cycleid` after a completed cycle (next year) | `"action": "created"`. Completed cycles don't block new ones. |
-| `reconcile` with `cycleids[0]={cycleid}` | Current status, compliance, completion time and certificate code. |
+| Situation | Status | Result |
+| --- | --- | --- |
+| `GET /v1/cycles/{cycleid}` for a completed cycle | `200` | `"status": "completed"`, `"compliance": "complete"`, `timecompleted` and `certificatecode`. |
+| `PUT` the same `cycleid` as a completed cycle, same `anniversarydate` | `200` | `"action": "unchanged"` with the completed cycle. |
+| `PUT` the same `cycleid` as a completed cycle, different `anniversarydate` | `409` | `cycleimmutable`: `Cycle C-… is final and cannot be changed.` |
+| `PUT` a new `cycleid` with the same `anniversarydate` as a completed cycle | `409` | `alreadycompleted`: `The learner already completed the annual training due 2027-03-15 in cycle C-…. A new cycle needs a different anniversary date.` Nothing is created and the finished progress is kept. |
+| `PUT` a new `cycleid` with a different `anniversarydate` (next year, or a rehire) | `201` | `"action": "created"` |
 
 When a cycle completes, the plugin also sends the [`cycle.completed`](#outbound-event-cyclecompleted) event.
 
-Known gaps:
+Known gap:
 
-- **Duplicate cycles for an already-completed year.** The due-date clash check only looks at active cycles. If the
-  adapter sends a new `cycleid` with the same due date as a completed cycle, the plugin creates a second cycle, which
-  resets the learner's finished progress when it opens. The adapter must avoid this until the plugin rejects it.
-- **No lookup by learner.** `reconcile` searches by Cycle ID or modification time only, so the adapter needs the Cycle
-  ID to check whether a learner has finished.
+- **No lookup by learner.** Cycles can only be fetched by Cycle ID or modification time, so the adapter needs the
+  Cycle ID to check whether a learner has finished.
 
 ## Outbound event: `cycle.completed`
 
@@ -514,12 +804,11 @@ Body:
   "data": {
     "cycleid": "C-2026-5005",
     "alayacareid": "5005",
-    "externalid": "EXT-5005",
-    "payrollid": "PR-5005",
+    "payrollnumber": "PR-5005",
     "moodleuserid": 345,
     "hiredate": "2021-03-15",
-    "opendate": "2026-01-01",
-    "duedate": "2026-12-31",
+    "anniversarydate": "2027-03-15",
+    "dueyear": 2027,
     "completedat": "2026-10-01T19:14:00-07:00",
     "completeddate": "2026-10-01",
     "ontime": true,
@@ -534,7 +823,8 @@ Body:
 }
 ```
 
-`completedat` and `completeddate` are in the compliance timezone.
+`completedat` and `completeddate` are in the compliance timezone. `dueyear` is the year of `anniversarydate`.
+`ontime` is `true` when the cycle was completed on or before the anniversary date.
 
 ## Browser pages
 
@@ -564,7 +854,7 @@ Tabs (each shows up to 500 rows):
 | --- | --- | --- |
 | `exceptions` | Open identity and cycle exceptions: type, occurrence count, AlayaCare id, details. | `resolve`: mark the exception resolved. |
 | `blocked` | Cycles whose snapshot or reset failed, with the reason. | `retry`: run the snapshot and reset again. |
-| `cycles` | All cycles except superseded ones, with employee fields, status, compliance, dates, approved time and certificate code. | `archive`: hide a completed cycle from default views. Nothing is deleted. |
+| `cycles` | All cycles except superseded ones, with employee fields, status, compliance, due (anniversary) date, access end date, approved time and certificate code. | `archive`: hide a completed cycle from default views. Nothing is deleted. |
 | `snapshots` | Evidence snapshots: type, creation time, verification, hash and certificate links. | None. |
 
 All three actions require `local/caregivertraining:managecycles`. `archive` only accepts completed or superseded
@@ -585,14 +875,14 @@ Requires `local/caregivertraining:export`. The administrator view has a form for
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `sesskey` | string | yes | Session key. |
-| `filter` | string | no | Exact match on AlayaCare id, External ID, payroll number, HCA number, Cycle ID or certificate code. Empty exports everything. |
+| `filter` | string | no | Exact match on AlayaCare id, payroll number, HCA number, Cycle ID or certificate code. Empty exports everything. |
 
 Returns a CSV download named `caregiver-training-{YYYYMMDD-HHMMSS}.csv`. There is one row per snapshot, or one row
 for a cycle without snapshots. Columns:
 
 ```text
-alayacareid, externalid, payrollid, hcanumber, registrationdate, moodleuserid, fullname,
-cycleid, status, compliance, hiredate, opendate, duedate, timecompleted, approvedseconds,
+alayacareid, payrollnumber, hcanumber, registrationdate, moodleuserid, fullname,
+cycleid, status, compliance, hiredate, anniversarydate, accessenddate, timecompleted, approvedseconds,
 timepolicy, certificatecode, resetstate, archived, snapshotid, snapshottype, snapshotverified,
 snapshotsha256, snapshotcreated, snapshotretainuntil, snapshotcounts, certificatefiles
 ```
@@ -641,9 +931,8 @@ php public/local/caregivertraining/cli/create_test_cycle.php --userid=42
 | --- | --- | --- |
 | `--userid` | required | Moodle user id of the learner. |
 | `--alayacareid` | `TEST-{userid}` | AlayaCare id to link. Ignored if the user is already linked. |
-| `--cycleid` | `TEST-{userid}-{opendate}` | Cycle ID. |
-| `--opendate` | Today | Window open date, `YYYY-MM-DD`, in the compliance timezone. |
-| `--duedate` | 30 days from today | Due date, `YYYY-MM-DD`. |
+| `--cycleid` | `TEST-{userid}-{anniversarydate}` | Cycle ID. |
+| `--anniversarydate` | 30 days from today | Anniversary (due) date, `YYYY-MM-DD`. The window opens 60 days before it, so the default cycle opens immediately. |
 | `-h`, `--help` | | Print help. |
 
 It goes through the same code as `provision_learner` and `upsert_cycle`, so the same conflict rules and errors apply.
@@ -654,7 +943,7 @@ and reset, exactly as for a real cycle.
 
 | Capability | Context | Granted by default to | Needed for |
 | --- | --- | --- | --- |
-| `local/caregivertraining:adapterapi` | System | Nobody | All adapter web service functions. |
+| `local/caregivertraining:adapterapi` | System | Nobody | The REST API and all adapter web service functions. |
 | `local/caregivertraining:viewreports` | System | Manager | `index.php`, snapshot certificate files. |
 | `local/caregivertraining:export` | System | Manager | `export.php`. |
 | `local/caregivertraining:managecycles` | System | Manager | Retry, archive and resolve actions in `index.php`. |
@@ -669,8 +958,7 @@ and reset, exactly as for a real cycle.
 | `bindingid` | Binding id. |
 | `userid` | Moodle user id. |
 | `alayacareid` | Canonical AlayaCare employee id. |
-| `externalid` | AlayaCare External ID. |
-| `payrollid` | Payroll number. |
+| `payrollnumber` | Payroll number. |
 | `hcanumber` | HCA number, from the locked profile field. |
 | `registrationdate` | HCA registration date (`YYYY-MM-DD`), or empty. |
 | `status` | Binding status. |
@@ -685,9 +973,11 @@ and reset, exactly as for a real cycle.
 | `alayacareid` | Canonical AlayaCare employee id. |
 | `status` | `scheduled`, `open`, `blocked`, `completed` or `superseded`. |
 | `compliance` | `upcoming`, `open`, `overdue`, `complete` or `notapplicable`. |
-| `hiredate`, `opendate`, `duedate` | `YYYY-MM-DD`. `hiredate` may be empty. |
-| `timeopen` | Unix time when the window opens. |
-| `timedue` | Unix time of the last second of the due date. |
+| `hiredate` | `YYYY-MM-DD`, or empty. |
+| `anniversarydate` | `YYYY-MM-DD`. The due date. |
+| `timeopen` | Unix time when the window opens: 00:00 on the anniversary minus 60 days. |
+| `timedue` | Unix time of the last second of the anniversary date. |
+| `timeaccessend` | Unix time of the last second of course access: the anniversary plus 14 days. |
 | `employmentstatus` | Last reported employment status. |
 | `enrolmentstatus` | `active` or `suspended`. |
 | `remindersenabled` | Whether reminders are sent. |

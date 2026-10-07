@@ -36,8 +36,7 @@ use local_caregivertraining\local\cycle_manager;
     'userid' => 0,
     'alayacareid' => '',
     'cycleid' => '',
-    'opendate' => '',
-    'duedate' => '',
+    'anniversarydate' => '',
 ], ['h' => 'help']);
 
 if ($unrecognised) {
@@ -53,9 +52,10 @@ progress as evidence and then resets it, exactly as a real annual cycle would.
 Options:
   --userid=ID          Moodle user id of the learner (required)
   --alayacareid=ID     AlayaCare id to link, if the user is not linked yet (default TEST-<userid>)
-  --cycleid=ID         Cycle id (default TEST-<userid>-<opendate>)
-  --opendate=Y-m-d     Window open date (default today)
-  --duedate=Y-m-d      Due date (default 30 days after today)
+  --cycleid=ID         Cycle id (default TEST-<userid>-<anniversarydate>)
+  --anniversarydate=Y-m-d
+                       Anniversary (due) date (default 30 days after today). The window opens
+                       60 days before it and access ends 14 days after it.
   -h, --help           Print this help
 
 Example:
@@ -72,8 +72,7 @@ if ($options['help'] || empty($options['userid'])) {
 
 $userid = (int) $options['userid'];
 $today = new DateTimeImmutable('now', config::timezone());
-$opendate = $options['opendate'] ?: $today->format('Y-m-d');
-$duedate = $options['duedate'] ?: $today->modify('+30 days')->format('Y-m-d');
+$anniversarydate = $options['anniversarydate'] ?: $today->modify('+30 days')->format('Y-m-d');
 
 try {
     $binding = binding_manager::get_by_userid($userid);
@@ -87,11 +86,10 @@ try {
     }
 
     $result = cycle_manager::upsert([
-        'cycleid' => $options['cycleid'] ?: "TEST-{$userid}-{$opendate}",
+        'cycleid' => $options['cycleid'] ?: "TEST-{$userid}-{$anniversarydate}",
         'userid' => $userid,
         'alayacareid' => $alayacareid,
-        'opendate' => $opendate,
-        'duedate' => $duedate,
+        'anniversarydate' => $anniversarydate,
     ]);
 } catch (\moodle_exception $e) {
     cli_error($e->getMessage() . (empty($e->debuginfo) ? '' : " ({$e->debuginfo})"));
@@ -99,4 +97,5 @@ try {
 
 $cycle = $result['cycle'];
 cli_writeln("Cycle {$cycle['cycleid']} {$result['action']}: status {$cycle['status']}, "
-    . "opens {$cycle['opendate']}, due {$cycle['duedate']}.");
+    . "opens " . cycle_manager::open_date($cycle['anniversarydate']) . ", due {$cycle['anniversarydate']}, "
+    . "access ends " . cycle_manager::access_end_date($cycle['anniversarydate']) . ".");

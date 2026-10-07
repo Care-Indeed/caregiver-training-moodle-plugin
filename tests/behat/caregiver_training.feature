@@ -6,8 +6,8 @@ Feature: Caregiver annual training learner experience and administrator view
 
   Background:
     Given the synthetic caregiver annual course exists
-    And caregiver "cg1" has cycle "BEHAT-CG1-2026" opening 0 days from today and due 30 days from today
-    And caregiver "cg2" has cycle "BEHAT-CG2-2026" opening -60 days from today and due -1 days from today
+    And caregiver "cg1" has cycle "BEHAT-CG1-2026" due 30 days from today
+    And caregiver "cg2" has cycle "BEHAT-CG2-2026" due -1 days from today
 
   Scenario: Learner sees the due date, unresolved time policy and a next activity action
     Given I log in as "cg1"
@@ -17,10 +17,10 @@ Feature: Caregiver annual training learner experience and administrator view
     And I click on "Next activity" "link"
     Then I should see "Lesson"
 
-  Scenario: Overdue learner keeps access
+  Scenario: Overdue learner keeps access for 14 days after the due date
     Given I log in as "cg2"
     And I am on "Synthetic annual caregiver training" course homepage
-    Then I should see "Overdue by 1 day(s). The course remains open."
+    Then I should see "Overdue by 1 day(s). The course remains open until"
 
   Scenario: Learners only see their own cycle
     Given I log in as "cg1"
@@ -33,7 +33,7 @@ Feature: Caregiver annual training learner experience and administrator view
     Given I log in as "admin"
     When I visit "/local/caregivertraining/index.php?tab=cycles"
     Then I should see "BEHAT-CG1-2026"
-    And I should see "Overdue (access open)"
+    And I should see "Overdue"
     And "Export CSV" "button" should exist
     When I visit "/local/caregivertraining/index.php?tab=blocked"
     Then I should see "Nothing to display."

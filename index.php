@@ -92,7 +92,7 @@ $archivedsql = $showarchived ? '' : ' AND c.archived = 0';
 $table = new html_table();
 $table->attributes['class'] = 'generaltable';
 $userfields = profile_fields::user_fields()->get_sql('u', true);
-$cyclesql = "SELECT c.*, b.alayacareid, b.payrollid {$userfields->selects}
+$cyclesql = "SELECT c.*, b.alayacareid, b.payrollnumber {$userfields->selects}
                FROM {local_cgt_cycle} c
                JOIN {local_cgt_binding} b ON b.id = c.bindingid
                JOIN {user} u ON u.id = c.userid
@@ -110,17 +110,17 @@ switch ($tab) {
             500
         );
         foreach ($records as $r) {
-            $table->data[] = [fullname($r), s($r->alayacareid), s($r->cycleid), s($r->duedate), s($r->blockedreason),
+            $table->data[] = [fullname($r), s($r->alayacareid), s($r->cycleid), s($r->anniversarydate), s($r->blockedreason),
                 $canmanage ? $actionbutton('retry', (int) $r->id, get_string('retryreset', $component)) : ''];
         }
         break;
 
     case 'cycles':
         $table->head = [get_string('col_employee', $component), get_string('col_alayacareid', $component),
-            get_string('field_externalid', $component), get_string('field_payrollid', $component),
+            get_string('field_payrollnumber', $component),
             get_string('field_hcanumber', $component), get_string('field_registrationdate', $component),
             get_string('col_cycleid', $component), get_string('col_status', $component),
-            get_string('col_compliance', $component), get_string('col_open', $component), get_string('col_due', $component),
+            get_string('col_compliance', $component), get_string('col_due', $component), get_string('col_accessend', $component),
             get_string('col_completed', $component), get_string('col_time', $component),
             get_string('col_certificate', $component), get_string('col_actions', $component)];
         $records = $DB->get_records_sql("{$cyclesql} WHERE c.status <> 'superseded' {$archivedsql}
@@ -130,9 +130,10 @@ switch ($tab) {
             $employment = profile_fields::values_from_record($r);
             $actions = ($canmanage && $r->status === 'completed' && !$r->archived)
                 ? $actionbutton('archive', (int) $r->id, get_string('archivecycle', $component)) : '';
-            $table->data[] = [fullname($r), s($r->alayacareid), s($employment['externalid']), s($employment['payrollid']),
+            $table->data[] = [fullname($r), s($r->alayacareid), s($employment['payrollnumber']),
                 s($employment['hcanumber']), s($employment['registrationdate']), s($r->cycleid), s($r->status),
-                get_string('compliance_' . $compliance, $component), s($r->opendate), s($r->duedate), $fmt($r->timecompleted),
+                get_string('compliance_' . $compliance, $component), s($r->anniversarydate),
+                s(cycle_manager::access_end_date($r->anniversarydate)), $fmt($r->timecompleted),
                 format_time((int) $r->approvedseconds), s($r->certificatecode), $actions];
         }
         break;

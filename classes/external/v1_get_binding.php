@@ -38,8 +38,7 @@ class v1_get_binding extends adapter_api {
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters([
             'alayacareid' => new external_value(PARAM_RAW, 'Canonical AlayaCare employee id', VALUE_DEFAULT, ''),
-            'externalid' => new external_value(PARAM_RAW, 'AlayaCare external id', VALUE_DEFAULT, ''),
-            'payrollid' => new external_value(PARAM_RAW, 'Payroll number', VALUE_DEFAULT, ''),
+            'payrollnumber' => new external_value(PARAM_RAW, 'Payroll number', VALUE_DEFAULT, ''),
             'email' => new external_value(PARAM_RAW, 'Email (candidate matching only)', VALUE_DEFAULT, ''),
             'userid' => new external_value(PARAM_INT, 'Moodle user id', VALUE_DEFAULT, 0),
         ]);
@@ -49,23 +48,20 @@ class v1_get_binding extends adapter_api {
      * Execute.
      *
      * @param string $alayacareid
-     * @param string $externalid
-     * @param string $payrollid
+     * @param string $payrollnumber
      * @param string $email
      * @param int $userid
      * @return array
      */
     public static function execute(
         string $alayacareid = '',
-        string $externalid = '',
-        string $payrollid = '',
+        string $payrollnumber = '',
         string $email = '',
         int $userid = 0
     ): array {
         $params = self::validate_parameters(self::execute_parameters(), compact(
             'alayacareid',
-            'externalid',
-            'payrollid',
+            'payrollnumber',
             'email',
             'userid'
         ));

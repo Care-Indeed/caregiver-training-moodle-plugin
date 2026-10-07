@@ -45,9 +45,9 @@ final class time_tracker_test extends \advanced_testcase {
         $gen = $this->getDataGenerator()->get_plugin_generator('local_caregivertraining');
         $this->fixture = $gen->create_annual_course();
         $this->learner = $gen->create_learner();
-        $today = (new \DateTimeImmutable('now', config::timezone()))->format('Y-m-d');
+        $anniversary = (new \DateTimeImmutable('now', config::timezone()))->modify('+30 days')->format('Y-m-d');
         cycle_manager::upsert(['cycleid' => 'T-1', 'userid' => $this->learner->user->id,
-            'alayacareid' => $this->learner->alayacareid, 'opendate' => $today, 'duedate' => '2099-12-31']);
+            'alayacareid' => $this->learner->alayacareid, 'anniversarydate' => $anniversary]);
         $this->cmid = (int) $this->fixture->lesson->cmid;
         set_config('heartbeatseconds', 30, 'local_caregivertraining');
         set_config('idleseconds', 120, 'local_caregivertraining');
@@ -154,9 +154,9 @@ final class time_tracker_test extends \advanced_testcase {
         $this->beat(0, 'c');
         $this->assertSame('token_mismatch', $this->beat(30, 'c', ['cmid' => (int) $this->fixture->quiz->cmid])['reason']);
         $other = $this->getDataGenerator()->get_plugin_generator('local_caregivertraining')->create_learner();
-        $today = (new \DateTimeImmutable('now', config::timezone()))->format('Y-m-d');
+        $anniversary = (new \DateTimeImmutable('now', config::timezone()))->modify('+30 days')->format('Y-m-d');
         cycle_manager::upsert(['cycleid' => 'T-2', 'userid' => $other->user->id, 'alayacareid' => $other->alayacareid,
-            'opendate' => $today, 'duedate' => '2099-12-31']);
+            'anniversarydate' => $anniversary]);
         $this->assertSame('token_mismatch', $this->beat(30, 'c', ['userid' => (int) $other->user->id])['reason']);
         $this->expectException(\invalid_parameter_exception::class);
         time_tracker::heartbeat((int) $this->learner->user->id, $this->cmid, 'not-hex', true, false, 0);

@@ -231,8 +231,7 @@ class evidence {
             'courseid' => (int) $course->id,
             'cycle' => $cycle ? [
                 'cycleid' => $cycle->cycleid,
-                'opendate' => $cycle->opendate,
-                'duedate' => $cycle->duedate,
+                'anniversarydate' => $cycle->anniversarydate,
                 'hiredate' => $cycle->hiredate,
                 'status' => $cycle->status,
                 'timecompleted' => $cycle->timecompleted ? (int) $cycle->timecompleted : null,

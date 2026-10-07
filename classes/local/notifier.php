@@ -72,7 +72,7 @@ class notifier {
             if (config::notification_enabled('windowopen') && $now >= $cycle->timeopen) {
                 $queued += (int) self::queue($cycle, 'windowopen', 'once');
             }
-            $duestart = cycle_manager::start_of_day($cycle->duedate);
+            $duestart = cycle_manager::start_of_day($cycle->anniversarydate);
             foreach (config::reminder_offsets() as $days) {
                 $at = (new \DateTimeImmutable('@' . $duestart))->setTimezone(config::timezone())
                     ->modify("-{$days} days")->getTimestamp();
@@ -185,8 +185,9 @@ class notifier {
         $replacements = [
             '{firstname}' => $user->firstname,
             '{lastname}' => $user->lastname,
-            '{opendate}' => $format($cycle->opendate),
-            '{duedate}' => $format($cycle->duedate),
+            '{opendate}' => $format(cycle_manager::open_date($cycle->anniversarydate)),
+            '{duedate}' => $format($cycle->anniversarydate),
+            '{accessenddate}' => $format(cycle_manager::access_end_date($cycle->anniversarydate)),
             '{courseurl}' => (new \moodle_url('/course/view.php', ['id' => $cycle->courseid]))->out(false),
             '{cycleid}' => $cycle->cycleid,
             '{certificatecode}' => (string) $cycle->certificatecode,

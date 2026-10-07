@@ -45,9 +45,9 @@ final class completion_test extends \advanced_testcase {
         $this->gen = $this->getDataGenerator()->get_plugin_generator('local_caregivertraining');
         $this->fixture = $this->gen->create_annual_course();
         $this->learner = $this->gen->create_learner();
-        $today = (new \DateTimeImmutable('now', config::timezone()))->format('Y-m-d');
+        $anniversary = (new \DateTimeImmutable('now', config::timezone()))->modify('+30 days')->format('Y-m-d');
         cycle_manager::upsert(['cycleid' => 'C-1', 'userid' => $this->learner->user->id,
-            'alayacareid' => $this->learner->alayacareid, 'opendate' => $today, 'duedate' => '2099-12-31']);
+            'alayacareid' => $this->learner->alayacareid, 'anniversarydate' => $anniversary]);
         set_config('nominaldurations', json_encode(array_fill_keys($this->fixture->cms, 4500)), 'local_caregivertraining');
         set_config('hrccemails', 'hr@example.com', 'local_caregivertraining');
     }
@@ -102,7 +102,14 @@ final class completion_test extends \advanced_testcase {
         $this->assertSame('cycle.completed', $event['type']);
         $this->assertSame('C-1', $event['data']['cycleid']);
         $this->assertSame($this->learner->alayacareid, $event['data']['alayacareid']);
+        $this->assertSame($this->learner->binding->payrollnumber, $event['data']['payrollnumber']);
+        $this->assertSame((int) $this->learner->user->id, $event['data']['moodleuserid']);
         $this->assertSame($cycle->certificatecode, $event['data']['certificate']['code']);
+        $this->assertSame((int) $cycle->certificateissueid, $event['data']['certificate']['issueid']);
+        $this->assertSame(
+            (new \moodle_url('/mod/customcert/verify_certificate.php', ['code' => $cycle->certificatecode]))->out(false),
+            $event['data']['certificate']['verifyurl']
+        );
         $this->assertTrue($event['data']['ontime']);
 
         $this->preventResetByRollback();
@@ -134,7 +141,7 @@ final class completion_test extends \advanced_testcase {
     public function test_reminders_follow_configuration_and_stop_when_terminated(): void {
         global $DB;
         $cycle = cycle_manager::get('C-1');
-        $duestart = cycle_manager::start_of_day($cycle->duedate);
+        $duestart = cycle_manager::start_of_day($cycle->anniversarydate);
         $this->assertSame(1, notifier::queue_due_notifications(), 'window-open only; no default reminder schedule');
         $this->assertSame(0, notifier::queue_due_notifications($duestart - 10 * DAYSECS));
 

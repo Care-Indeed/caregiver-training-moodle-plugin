@@ -24,10 +24,10 @@ namespace local_caregivertraining\local;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class profile_fields {
-    /** @var string AlayaCare external_id. */
-    const EXTERNALID = 'cgt_alayacare_externalid';
-    /** @var string Employee ID / payroll number. */
-    const PAYROLLID = 'cgt_payrollid';
+    /** @var string AlayaCare employee id (copy of the binding key, for profile display and search). */
+    const ALAYACAREID = 'cgt_alayacareid';
+    /** @var string Payroll number. */
+    const PAYROLLNUMBER = 'cgt_payrollnumber';
     /** @var string HCA number. */
     const HCANUMBER = 'cgt_hcanumber';
     /** @var string HCA registration date (supplied by the adapter; never calculated here). */
@@ -40,8 +40,8 @@ class profile_fields {
      */
     public static function definitions(): array {
         return [
-            self::EXTERNALID => ['datatype' => 'text', 'name' => 'field_externalid', 'forceunique' => 1],
-            self::PAYROLLID => ['datatype' => 'text', 'name' => 'field_payrollid', 'forceunique' => 1],
+            self::ALAYACAREID => ['datatype' => 'text', 'name' => 'field_alayacareid', 'forceunique' => 1],
+            self::PAYROLLNUMBER => ['datatype' => 'text', 'name' => 'field_payrollnumber', 'forceunique' => 1],
             self::HCANUMBER => ['datatype' => 'text', 'name' => 'field_hcanumber', 'forceunique' => 0],
             self::REGISTRATIONDATE => ['datatype' => 'datetime', 'name' => 'field_registrationdate', 'forceunique' => 0],
         ];
@@ -174,7 +174,7 @@ class profile_fields {
      * The registration date is YYYY-MM-DD. Text fields are trimmed. Missing values are empty strings.
      *
      * @param \stdClass $record
-     * @return array{externalid: string, payrollid: string, hcanumber: string, registrationdate: string}
+     * @return array{alayacareid: string, payrollnumber: string, hcanumber: string, registrationdate: string}
      */
     public static function values_from_record(\stdClass $record): array {
         $text = function (string $shortname) use ($record): string {
@@ -188,8 +188,8 @@ class profile_fields {
             $registrationdate = $timestamp > 0 ? gmdate('Y-m-d', $timestamp) : '';
         }
         return [
-            'externalid' => $text(self::EXTERNALID),
-            'payrollid' => $text(self::PAYROLLID),
+            'alayacareid' => $text(self::ALAYACAREID),
+            'payrollnumber' => $text(self::PAYROLLNUMBER),
             'hcanumber' => $text(self::HCANUMBER),
             'registrationdate' => $registrationdate,
         ];

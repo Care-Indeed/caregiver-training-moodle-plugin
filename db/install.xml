@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="local/caregivertraining/db" VERSION="20260924" COMMENT="XMLDB file for local_caregivertraining"
+<XMLDB PATH="local/caregivertraining/db" VERSION="20261008" COMMENT="XMLDB file for local_caregivertraining"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
 >
@@ -9,8 +9,7 @@
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="alayacareid" TYPE="char" LENGTH="64" NOTNULL="true" SEQUENCE="false" COMMENT="Canonical immutable AlayaCare employee id"/>
-        <FIELD NAME="externalid" TYPE="char" LENGTH="100" NOTNULL="false" SEQUENCE="false" COMMENT="AlayaCare external_id; not assumed equal to payroll"/>
-        <FIELD NAME="payrollid" TYPE="char" LENGTH="100" NOTNULL="false" SEQUENCE="false" COMMENT="Employee ID / payroll number"/>
+        <FIELD NAME="payrollnumber" TYPE="char" LENGTH="100" NOTNULL="false" SEQUENCE="false" COMMENT="Payroll number"/>
         <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="active" SEQUENCE="false"/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
@@ -22,8 +21,7 @@
       </KEYS>
       <INDEXES>
         <INDEX NAME="alayacareid" UNIQUE="true" FIELDS="alayacareid"/>
-        <INDEX NAME="externalid" UNIQUE="false" FIELDS="externalid"/>
-        <INDEX NAME="payrollid" UNIQUE="false" FIELDS="payrollid"/>
+        <INDEX NAME="payrollnumber" UNIQUE="false" FIELDS="payrollnumber"/>
       </INDEXES>
     </TABLE>
     <TABLE NAME="local_cgt_cycle" COMMENT="Student-owned annual training cycle, independent of course-wide progress">
@@ -34,10 +32,10 @@
         <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="hiredate" TYPE="char" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="YYYY-MM-DD as calculated by the adapter"/>
-        <FIELD NAME="opendate" TYPE="char" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
-        <FIELD NAME="duedate" TYPE="char" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
-        <FIELD NAME="timeopen" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Start of opendate in the compliance timezone"/>
-        <FIELD NAME="timedue" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Last second of duedate in the compliance timezone"/>
+        <FIELD NAME="anniversarydate" TYPE="char" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="YYYY-MM-DD anniversary that this cycle is due on"/>
+        <FIELD NAME="timeopen" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Start of the day 60 days before the anniversary, compliance timezone"/>
+        <FIELD NAME="timedue" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Last second of the anniversary date, compliance timezone"/>
+        <FIELD NAME="timeaccessend" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Last second of the day 14 days after the anniversary; enrolment ends here"/>
         <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="scheduled" SEQUENCE="false"/>
         <FIELD NAME="employmentstatus" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="active" SEQUENCE="false"/>
         <FIELD NAME="enrolmentstatus" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="active" SEQUENCE="false"/>

@@ -30,8 +30,8 @@ class export {
      * @return string[]
      */
     public static function columns(): array {
-        return ['alayacareid', 'externalid', 'payrollid', 'hcanumber', 'registrationdate', 'moodleuserid', 'fullname',
-            'cycleid', 'status', 'compliance', 'hiredate', 'opendate', 'duedate', 'timecompleted', 'approvedseconds',
+        return ['alayacareid', 'payrollnumber', 'hcanumber', 'registrationdate', 'moodleuserid', 'fullname',
+            'cycleid', 'status', 'compliance', 'hiredate', 'anniversarydate', 'accessenddate', 'timecompleted', 'approvedseconds',
             'timepolicy', 'certificatecode', 'resetstate', 'archived', 'snapshotid', 'snapshottype', 'snapshotverified',
             'snapshotsha256', 'snapshotcreated', 'snapshotretainuntil', 'snapshotcounts', 'certificatefiles'];
     }
@@ -50,17 +50,16 @@ class export {
         $params = [];
         $where = '1 = 1';
         if ($filter !== '') {
-            $where = '(b.alayacareid = :f1 OR b.externalid = :f2 OR b.payrollid = :f3 OR c.cycleid = :f4
-                OR c.certificatecode = :f5)';
-            $params = ['f1' => $filter, 'f2' => $filter, 'f3' => $filter, 'f4' => $filter, 'f5' => $filter];
+            $where = '(b.alayacareid = :f1 OR b.payrollnumber = :f2 OR c.cycleid = :f3 OR c.certificatecode = :f4)';
+            $params = ['f1' => $filter, 'f2' => $filter, 'f3' => $filter, 'f4' => $filter];
         }
         $userfields = profile_fields::user_fields()->get_sql('u', true);
         if ($filter !== '') {
             $hcanumber = $userfields->mappings[\core_user\fields::PROFILE_FIELD_PREFIX . profile_fields::HCANUMBER];
-            $where .= " OR {$hcanumber} = :f6";
-            $params['f6'] = $filter;
+            $where .= " OR {$hcanumber} = :f5";
+            $params['f5'] = $filter;
         }
-        $cycles = $DB->get_records_sql("SELECT c.*, b.alayacareid, b.externalid, b.payrollid {$userfields->selects}
+        $cycles = $DB->get_records_sql("SELECT c.*, b.alayacareid, b.payrollnumber {$userfields->selects}
             FROM {local_cgt_cycle} c
             JOIN {local_cgt_binding} b ON b.id = c.bindingid
             JOIN {user} u ON u.id = c.userid
@@ -73,10 +72,10 @@ class export {
         foreach ($cycles as $cycle) {
             $employment = profile_fields::values_from_record($cycle);
             $base = [
-                $cycle->alayacareid, (string) $cycle->externalid, (string) $cycle->payrollid,
+                $cycle->alayacareid, (string) $cycle->payrollnumber,
                 $employment['hcanumber'], $employment['registrationdate'], (int) $cycle->userid,
                 fullname($cycle), $cycle->cycleid, $cycle->status, cycle_manager::compliance($cycle), (string) $cycle->hiredate,
-                $cycle->opendate, $cycle->duedate,
+                $cycle->anniversarydate, cycle_manager::access_end_date($cycle->anniversarydate),
                 $cycle->timecompleted ? (new \DateTimeImmutable('@' . $cycle->timecompleted))->setTimezone($tz)->format(DATE_ATOM)
                     : '',
                 (int) $cycle->approvedseconds, (string) $cycle->timepolicy, (string) $cycle->certificatecode, $cycle->resetstate,

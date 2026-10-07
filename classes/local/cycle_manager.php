@@ -17,14 +17,20 @@
 namespace local_caregivertraining\local;
 
 /**
- * Annual cycle lifecycle. Dates are calculated by the adapter; this class only validates,
- * stores and enforces them.
+ * Annual cycle lifecycle. The adapter sends the anniversary date (the due date); the window
+ * opens OPEN_DAYS_BEFORE days earlier and enrolment ends ACCESS_DAYS_AFTER days later.
  *
  * @package    local_caregivertraining
  * @copyright  2026 CI Institute of Nursing
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class cycle_manager {
+    /** @var int Days before the anniversary that the training window opens. */
+    const OPEN_DAYS_BEFORE = 60;
+
+    /** @var int Days after the anniversary that course access ends. */
+    const ACCESS_DAYS_AFTER = 14;
+
     /** @var string[] Statuses that can no longer change. */
     const FINAL_STATUSES = ['completed', 'superseded'];
 
@@ -68,6 +74,48 @@ class cycle_manager {
     public static function end_of_day(string $date): int {
         $start = \DateTimeImmutable::createFromFormat('!Y-m-d', self::parse_date($date), config::timezone());
         return $start->modify('+1 day')->getTimestamp() - 1;
+    }
+
+    /**
+     * Shift a date by whole calendar days.
+     *
+     * @param string $date YYYY-MM-DD
+     * @param int $days
+     * @return string YYYY-MM-DD
+     */
+    private static function shift_date(string $date, int $days): string {
+        $dt = \DateTimeImmutable::createFromFormat('!Y-m-d', self::parse_date($date), config::timezone());
+        return $dt->modify(sprintf('%+d days', $days))->format('Y-m-d');
+    }
+
+    /**
+     * Date the training window opens for an anniversary.
+     *
+     * @param string $anniversarydate
+     * @return string YYYY-MM-DD
+     */
+    public static function open_date(string $anniversarydate): string {
+        return self::shift_date($anniversarydate, -self::OPEN_DAYS_BEFORE);
+    }
+
+    /**
+     * Last date of course access for an anniversary.
+     *
+     * @param string $anniversarydate
+     * @return string YYYY-MM-DD
+     */
+    public static function access_end_date(string $anniversarydate): string {
+        return self::shift_date($anniversarydate, self::ACCESS_DAYS_AFTER);
+    }
+
+    /**
+     * Last second of course access for an anniversary.
+     *
+     * @param string $anniversarydate
+     * @return int
+     */
+    public static function access_end_time(string $anniversarydate): int {
+        return self::end_of_day(self::access_end_date($anniversarydate));
     }
 
     /**
@@ -124,7 +172,7 @@ class cycle_manager {
     /**
      * Create, update or start a cycle.
      *
-     * @param array $p cycleid, userid, alayacareid, hiredate, opendate, duedate, supersedescycleid
+     * @param array $p cycleid, userid, alayacareid, hiredate, anniversarydate, supersedescycleid
      * @return array
      */
     public static function upsert(array $p): array {
@@ -134,14 +182,11 @@ class cycle_manager {
         $userid = (int) $p['userid'];
         $binding = self::require_binding($userid, $p['alayacareid']);
 
-        $opendate = self::parse_date($p['opendate']);
-        $duedate = self::parse_date($p['duedate']);
+        $anniversarydate = self::parse_date($p['anniversarydate']);
         $hiredate = ($p['hiredate'] ?? '') !== '' ? self::parse_date($p['hiredate']) : null;
-        if ($opendate > $duedate) {
-            throw new \moodle_exception('error:dateorder', config::COMPONENT);
-        }
-        $timeopen = self::start_of_day($opendate);
-        $timedue = self::end_of_day($duedate);
+        $timeopen = self::start_of_day(self::open_date($anniversarydate));
+        $timedue = self::end_of_day($anniversarydate);
+        $timeaccessend = self::access_end_time($anniversarydate);
 
         $lock = locks::acquire('user:' . $userid);
         try {
@@ -152,7 +197,7 @@ class cycle_manager {
                     exceptions::raise('cycleid_reused', ['key' => $cycleid], $userid, $binding->alayacareid, (int) $existing->id);
                     throw new \moodle_exception('error:cycleconflict', config::COMPONENT, '', 'cycleid belongs to another learner');
                 }
-                $same = $existing->opendate === $opendate && $existing->duedate === $duedate
+                $same = $existing->anniversarydate === $anniversarydate
                     && (string) $existing->hiredate === (string) $hiredate;
                 if (in_array($existing->status, self::FINAL_STATUSES, true)) {
                     if (!$same) {
@@ -162,17 +207,24 @@ class cycle_manager {
                 }
                 $action = 'unchanged';
                 if (!$same) {
-                    $existing->opendate = $opendate;
-                    $existing->duedate = $duedate;
+                    $existing->anniversarydate = $anniversarydate;
                     $existing->hiredate = $hiredate;
                     $existing->timeopen = $timeopen;
                     $existing->timedue = $timedue;
+                    $existing->timeaccessend = $timeaccessend;
                     $existing->timemodified = $now;
                     $DB->update_record('local_cgt_cycle', $existing);
                     $action = 'updated';
                 }
                 $cycle = $existing;
             } else {
+                // Opening another cycle for an anniversary that is already complete would reset the finished progress.
+                $done = $DB->get_records('local_cgt_cycle', ['userid' => $userid, 'courseid' => $course->id,
+                    'status' => 'completed', 'anniversarydate' => $anniversarydate], 'id ASC', 'id, cycleid', 0, 1);
+                if ($done = reset($done)) {
+                    throw new \moodle_exception('error:alreadycompleted', config::COMPONENT, '',
+                        (object) ['cycleid' => $done->cycleid, 'anniversarydate' => $anniversarydate]);
+                }
                 $supersedes = trim((string) ($p['supersedescycleid'] ?? ''));
                 [$insql, $inparams] = $DB->get_in_or_equal(self::ACTIVE_STATUSES, SQL_PARAMS_NAMED);
                 $active = $DB->get_records_select(
@@ -182,12 +234,12 @@ class cycle_manager {
                 );
                 $superseded = null;
                 foreach ($active as $other) {
-                    if ($other->duedate === $duedate) {
+                    if ($other->anniversarydate === $anniversarydate) {
                         throw new \moodle_exception(
                             'error:cycleconflict',
                             config::COMPONENT,
                             '',
-                            "cycle {$other->cycleid} already covers due date {$duedate}"
+                            "cycle {$other->cycleid} already covers anniversary date {$anniversarydate}"
                         );
                     }
                     if ($supersedes !== '' && $other->cycleid === $supersedes) {
@@ -216,10 +268,10 @@ class cycle_manager {
                     'userid' => $userid,
                     'courseid' => $course->id,
                     'hiredate' => $hiredate,
-                    'opendate' => $opendate,
-                    'duedate' => $duedate,
+                    'anniversarydate' => $anniversarydate,
                     'timeopen' => $timeopen,
                     'timedue' => $timedue,
+                    'timeaccessend' => $timeaccessend,
                     'status' => 'scheduled',
                     'employmentstatus' => 'active',
                     'enrolmentstatus' => 'active',
@@ -281,14 +333,14 @@ class cycle_manager {
                 (int) $cycle->userid,
                 config::role_id(),
                 (int) $cycle->timeopen,
-                0,
+                (int) $cycle->timeaccessend,
                 ENROL_USER_ACTIVE
             );
         }
     }
 
     /**
-     * Apply the cycle's enrolment: starts at the open date, never ends at the due date.
+     * Apply the cycle's enrolment: starts at the open date and ends ACCESS_DAYS_AFTER days after the due date.
      *
      * @param \stdClass $cycle
      * @param \stdClass $course
@@ -301,7 +353,7 @@ class cycle_manager {
             (int) $cycle->userid,
             config::role_id(),
             (int) $cycle->timeopen,
-            0,
+            (int) $cycle->timeaccessend,
             $status
         );
     }
@@ -541,7 +593,7 @@ class cycle_manager {
     }
 
     /**
-     * Derived compliance label. Access is unaffected: overdue cycles stay open.
+     * Derived compliance label. Overdue cycles stay accessible until the access end.
      *
      * @param \stdClass $cycle
      * @param int|null $now
@@ -578,10 +630,10 @@ class cycle_manager {
             'status' => $cycle->status,
             'compliance' => self::compliance($cycle),
             'hiredate' => (string) $cycle->hiredate,
-            'opendate' => $cycle->opendate,
-            'duedate' => $cycle->duedate,
+            'anniversarydate' => $cycle->anniversarydate,
             'timeopen' => (int) $cycle->timeopen,
             'timedue' => (int) $cycle->timedue,
+            'timeaccessend' => (int) $cycle->timeaccessend,
             'employmentstatus' => $cycle->employmentstatus,
             'enrolmentstatus' => $cycle->enrolmentstatus,
             'remindersenabled' => (bool) $cycle->remindersenabled,

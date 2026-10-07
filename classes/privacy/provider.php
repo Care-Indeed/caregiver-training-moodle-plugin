@@ -45,13 +45,12 @@ class provider implements
         $collection->add_database_table('local_cgt_binding', [
             'userid' => 'privacy:metadata:local_cgt_binding:userid',
             'alayacareid' => 'privacy:metadata:local_cgt_binding:alayacareid',
-            'externalid' => 'privacy:metadata:local_cgt_binding:externalid',
-            'payrollid' => 'privacy:metadata:local_cgt_binding:payrollid',
+            'payrollnumber' => 'privacy:metadata:local_cgt_binding:payrollnumber',
         ], 'privacy:metadata:local_cgt_binding');
         $collection->add_database_table('local_cgt_cycle', [
             'userid' => 'privacy:metadata:local_cgt_cycle:userid',
             'cycleid' => 'privacy:metadata:local_cgt_cycle:cycleid',
-            'duedate' => 'privacy:metadata:local_cgt_cycle:duedate',
+            'anniversarydate' => 'privacy:metadata:local_cgt_cycle:anniversarydate',
             'timecompleted' => 'privacy:metadata:local_cgt_cycle:timecompleted',
             'approvedseconds' => 'privacy:metadata:local_cgt_cycle:approvedseconds',
         ], 'privacy:metadata:local_cgt_cycle');
@@ -137,13 +136,13 @@ class provider implements
         $binding = $DB->get_record(
             'local_cgt_binding',
             ['userid' => $userid],
-            'alayacareid, externalid, payrollid, status, timecreated'
+            'alayacareid, payrollnumber, status, timecreated'
         );
         $cycles = array_values($DB->get_records(
             'local_cgt_cycle',
             ['userid' => $userid],
             'timedue',
-            'id, cycleid, opendate, duedate, hiredate, status, timecompleted, approvedseconds, timepolicy, certificatecode'
+            'id, cycleid, anniversarydate, hiredate, status, timecompleted, approvedseconds, timepolicy, certificatecode'
         ));
         foreach ($cycles as $cycle) {
             $cycle->timesessions = array_values($DB->get_records(

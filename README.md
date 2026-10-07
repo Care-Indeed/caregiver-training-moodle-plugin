@@ -25,9 +25,10 @@ repository in its `Dockerfile`. To release a change:
 
 ## Documentation
 
-Every endpoint (adapter web services, the outbound completion event, admin pages, the CSV export and the CLI
-script) is documented in [docs/api-endpoints.md](docs/api-endpoints.md), including how the web services handle common
-provisioning and cycle scenarios.
+Every endpoint (the adapter REST API at `/local/caregivertraining/api.php/v1/...`, the equivalent web service
+functions, the outbound completion event, admin pages, the CSV export and the CLI script) is documented in
+[docs/api-endpoints.md](docs/api-endpoints.md), including how the API handles common provisioning and cycle
+scenarios. The REST API is also described in OpenAPI 3 format in [docs/openapi.yaml](docs/openapi.yaml).
 
 The design, release-blocking HR decisions, reset proof of concept, and local development setup are in the Moodle
 repository:
