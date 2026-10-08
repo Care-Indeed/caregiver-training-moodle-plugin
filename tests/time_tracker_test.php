@@ -175,6 +175,9 @@ final class time_tracker_test extends \advanced_testcase {
         $this->assertSame('1 hr 1 min', time_tracker::short_duration(3665));
         $this->assertSame('3 hrs 58 mins', time_tracker::short_duration(14335));
         $this->assertSame('2 hrs', time_tracker::short_duration(7200));
+        $this->assertSame('2 mins', time_tracker::short_duration(61, true));
+        $this->assertSame('1 min', time_tracker::short_duration(60, true));
+        $this->assertSame('0 mins', time_tracker::short_duration(0, true));
 
         set_config('timepolicy', config::POLICY_TRACKED, 'local_caregivertraining');
         set_config('requiredseconds', 18000, 'local_caregivertraining');
@@ -183,9 +186,41 @@ final class time_tracker_test extends \advanced_testcase {
         $cycle = cycle_manager::get('T-1');
         $this->assertSame(0, time_tracker::percent($cycle));
         $this->assertSame(
-            '<strong>0 mins</strong> completed of <strong>5 hours</strong> · <strong>4 hrs 59 mins</strong> remaining',
+            '<strong>0 mins</strong> completed of <strong>5 hours</strong> · <strong>5 hrs</strong> remaining',
             time_tracker::timeline($cycle)
         );
+    }
+
+    public function test_banner_minutes_add_up_and_stop_at_the_requirement(): void {
+        global $DB;
+        set_config('timepolicy', config::POLICY_TRACKED, 'local_caregivertraining');
+        set_config('requiredseconds', 600, 'local_caregivertraining');
+        $this->beat(0, 'a');
+        $session = $DB->get_record('local_cgt_timesession', []);
+        $cycle = cycle_manager::get('T-1');
+
+        $DB->set_field('local_cgt_timesession', 'creditedseconds', 510, ['id' => $session->id]);
+        $this->assertSame(
+            '<strong>8 mins</strong> completed of <strong>10 mins</strong> · <strong>2 mins</strong> remaining',
+            time_tracker::timeline($cycle)
+        );
+        $this->assertFalse(time_tracker::requirement_met($cycle));
+
+        $DB->set_field('local_cgt_timesession', 'creditedseconds', 720, ['id' => $session->id]);
+        $this->assertSame(
+            '<strong>10 mins</strong> completed of <strong>10 mins</strong> · <strong>0 mins</strong> remaining',
+            time_tracker::timeline($cycle)
+        );
+        $this->assertSame(100, time_tracker::percent($cycle));
+        $result = $this->beat(30, 'a');
+        $this->assertSame('requirement_met', $result['reason']);
+        $this->assertSame(0, $result['creditseconds']);
+        $this->assertSame('requirement_met', $this->beat(40, 'b')['reason'], 'a new page does not credit either');
+        $this->assertSame(720, $this->credited());
+
+        set_config('timepolicy', config::POLICY_UNRESOLVED, 'local_caregivertraining');
+        $this->assertSame('session_started', $this->beat(100, 'c')['reason']);
+        $this->assertSame(30, $this->beat(130, 'c')['creditseconds'], 'without an approved target, time is still recorded');
     }
 
     public function test_policy_controls_what_is_approved(): void {

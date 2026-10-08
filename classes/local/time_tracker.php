@@ -99,6 +99,9 @@ class time_tracker {
         if (!$cm || !$cm->uservisible) {
             return self::result($cycle, $userid, false, 'activity_unavailable');
         }
+        if (self::requirement_met($cycle)) {
+            return self::result($cycle, $userid, false, 'requirement_met');
+        }
 
         $lock = locks::try_acquire('time:' . $userid, 2);
         if (!$lock) {
@@ -269,6 +272,19 @@ class time_tracker {
     }
 
     /**
+     * Whether the approved time already covers the requirement. Never true while the policy is unresolved,
+     * because there is no approved target yet and time is still recorded as evidence.
+     *
+     * @param \stdClass $cycle
+     * @return bool
+     */
+    public static function requirement_met(\stdClass $cycle): bool {
+        $required = config::required_seconds();
+        return config::time_policy() !== config::POLICY_UNRESOLVED && $required > 0
+            && self::approved_seconds($cycle) >= $required;
+    }
+
+    /**
      * Recorded (not necessarily approved) seconds for display while the policy is unresolved.
      *
      * @param \stdClass $cycle
@@ -292,10 +308,11 @@ class time_tracker {
         }
         $required = config::required_seconds();
         $approved = self::approved_seconds($cycle);
+        // Completed rounds down and remaining rounds up, so the two always add up to the requirement.
         return get_string('banner_time', config::COMPONENT, (object) [
-            'approved' => $bold(self::short_duration($approved)),
+            'approved' => $bold(self::short_duration(min($approved, $required))),
             'required' => $bold(format_time($required)),
-            'remaining' => $bold(self::short_duration(max(0, $required - $approved))),
+            'remaining' => $bold(self::short_duration(max(0, $required - $approved), true)),
         ]);
     }
 
@@ -317,11 +334,16 @@ class time_tracker {
      * Compact duration in whole minutes, e.g. "1 hr 1 min", "3 hrs 58 mins", "0 mins".
      *
      * @param int $seconds
+     * @param bool $roundup round a partial minute up instead of down
      * @return string
      */
-    public static function short_duration(int $seconds): string {
-        $hours = intdiv(max(0, $seconds), HOURSECS);
-        $mins = intdiv(max(0, $seconds) % HOURSECS, MINSECS);
+    public static function short_duration(int $seconds, bool $roundup = false): string {
+        $seconds = max(0, $seconds);
+        if ($roundup) {
+            $seconds = (int) ceil($seconds / MINSECS) * MINSECS;
+        }
+        $hours = intdiv($seconds, HOURSECS);
+        $mins = intdiv($seconds % HOURSECS, MINSECS);
         $parts = [];
         if ($hours) {
             $parts[] = get_string($hours === 1 ? 'duration_hr' : 'duration_hrs', config::COMPONENT, $hours);

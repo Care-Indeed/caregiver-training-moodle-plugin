@@ -73,7 +73,7 @@ export const init = ({cmid, interval}) => {
             },
         }], true, true, true)[0].then((result) => {
             if (result.reason === 'no_open_cycle' || result.reason === 'activity_unavailable'
-                    || result.reason === 'token_mismatch') {
+                    || result.reason === 'token_mismatch' || result.reason === 'requirement_met') {
                 stopped = true;
                 window.clearInterval(timer);
             }

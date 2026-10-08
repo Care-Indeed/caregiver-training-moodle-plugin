@@ -637,7 +637,9 @@ part of the adapter service and can't be called with an adapter token. It requir
 
 The server decides how much time to credit using its own clock. The response includes `credited`, `creditseconds`,
 `reason` (for example `credited`, `session_started`, `hidden`, `idle`, `gap`, `concurrent`, `too_frequent`, `busy`,
-`no_open_cycle`, `activity_unavailable`, `token_mismatch`) and the updated banner values.
+`no_open_cycle`, `activity_unavailable`, `token_mismatch`, `requirement_met`) and the updated banner values. Once the
+approved time covers the requirement, beats return `requirement_met`, nothing more is credited, and the page stops
+sending beats. While the time policy is unresolved, time keeps being recorded as evidence.
 
 ## Scenario reference
 

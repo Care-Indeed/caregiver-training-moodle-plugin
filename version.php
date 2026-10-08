@@ -25,7 +25,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'local_caregivertraining';
-$plugin->version = 2026100801;
+$plugin->version = 2026100802;
 $plugin->requires = 2025100600;
 $plugin->supported = [501, 501];
 $plugin->maturity = MATURITY_ALPHA;
