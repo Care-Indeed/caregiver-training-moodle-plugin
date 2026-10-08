@@ -194,8 +194,14 @@ class time_tracker {
         if (!$visible || (!$playing && $interactedago > config::idle_seconds())) {
             return 0;
         }
-        $previous = $DB->get_records('local_cgt_timesession', ['cycleid' => $cycle->id, 'userid' => $userid],
-            'timelastbeat DESC, id DESC', '*', 0, 1);
+        $previous = $DB->get_records(
+            'local_cgt_timesession',
+            ['cycleid' => $cycle->id, 'userid' => $userid],
+            'timelastbeat DESC, id DESC',
+            '*',
+            0,
+            1
+        );
         $previous = reset($previous);
         if (!$previous || $previous->lastrejectreason !== null) {
             return 0;

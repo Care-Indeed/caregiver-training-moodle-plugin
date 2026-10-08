@@ -61,7 +61,7 @@ class v1_health extends adapter_api {
         if (config::time_policy() === config::POLICY_UNRESOLVED) {
             $problems[] = 'time_policy_unresolved';
         }
-        if (config::adapter_enabled() && (config::adapter_url() === '' || config::adapter_secret() === '')) {
+        if (config::adapter_enabled() && (!config::adapter_url_valid(config::adapter_url()) || config::adapter_secret() === '')) {
             $problems[] = 'adapter_delivery_misconfigured';
         }
 

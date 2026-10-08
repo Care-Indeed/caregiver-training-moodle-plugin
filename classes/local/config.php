@@ -270,6 +270,23 @@ class config {
     }
 
     /**
+     * Whether an adapter URL is safe to deliver to: HTTPS, or plain HTTP to a loopback host for local testing.
+     *
+     * @param string $url
+     * @return bool
+     */
+    public static function adapter_url_valid(string $url): bool {
+        $parts = parse_url($url);
+        if (!$parts || empty($parts['host']) || !isset($parts['scheme'])) {
+            return false;
+        }
+        $scheme = strtolower($parts['scheme']);
+        $host = strtolower(trim($parts['host'], '[]'));
+        $loopback = $host === 'localhost' || $host === '::1' || preg_match('/^127(\.\d{1,3}){3}$/', $host);
+        return $scheme === 'https' || ($scheme === 'http' && $loopback);
+    }
+
+    /**
      * Adapter signing secret. Never log this value.
      *
      * @return string

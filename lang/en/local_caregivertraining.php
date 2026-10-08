@@ -39,6 +39,7 @@ $string['activation_subject'] = '{$a}: set up your training account';
 $string['adapterenabled'] = 'Deliver events to the adapter';
 $string['adaptersecret'] = 'Adapter signing secret';
 $string['adapterurl'] = 'Adapter event endpoint';
+$string['adapterurl_desc'] = 'Must start with https://. Plain http:// is only accepted for localhost, for local testing. Events are not delivered to any other URL.';
 $string['adminview'] = 'Caregiver training';
 $string['archivecycle'] = 'Archive (hide)';
 $string['banner_complete'] = 'Completed on {$a}';

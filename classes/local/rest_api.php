@@ -93,8 +93,13 @@ class rest_api {
         global $CFG;
         require_once($CFG->dirroot . '/webservice/lib.php');
         if (!preg_match('/^Bearer\s+(\S+)$/i', trim($authorization), $m)) {
-            return self::error(401, 'unauthorized', 'Send the web service token as "Authorization: Bearer <token>".',
-                null, ['WWW-Authenticate' => 'Bearer']);
+            return self::error(
+                401,
+                'unauthorized',
+                'Send the web service token as "Authorization: Bearer <token>".',
+                null,
+                ['WWW-Authenticate' => 'Bearer']
+            );
         }
         try {
             $auth = (new \webservice())->authenticate_user($m[1]);
@@ -140,8 +145,13 @@ class rest_api {
                 return self::$handler($params, $query, $body, trim((string) ($headers['idempotency-key'] ?? '')));
             }
             if ($allowed) {
-                return self::error(405, 'methodnotallowed', "{$method} is not supported on {$path}.", null,
-                    ['Allow' => implode(', ', array_unique($allowed))]);
+                return self::error(
+                    405,
+                    'methodnotallowed',
+                    "{$method} is not supported on {$path}.",
+                    null,
+                    ['Allow' => implode(', ', array_unique($allowed))]
+                );
             }
             return self::error(404, 'routenotfound', "No endpoint matches {$method} {$path}.");
         } catch (\Throwable $e) {
@@ -400,8 +410,12 @@ class rest_api {
      * @return array
      */
     private static function learner_not_found(string $alayacareid, string $hint = ''): array {
-        return self::error(404, 'learnernotfound', "No Moodle learner is bound to AlayaCare id {$alayacareid}.",
-            $hint !== '' ? $hint : null);
+        return self::error(
+            404,
+            'learnernotfound',
+            "No Moodle learner is bound to AlayaCare id {$alayacareid}.",
+            $hint !== '' ? $hint : null
+        );
     }
 
     /**
@@ -461,8 +475,13 @@ class rest_api {
      * @param array $headers
      * @return array
      */
-    private static function error(int $status, string $error, string $message, ?string $details = null,
-            array $headers = []): array {
+    private static function error(
+        int $status,
+        string $error,
+        string $message,
+        ?string $details = null,
+        array $headers = []
+    ): array {
         $body = ['code' => $status, 'error' => $error, 'message' => $message];
         if ($details !== null && $details !== '') {
             $body['details'] = $details;

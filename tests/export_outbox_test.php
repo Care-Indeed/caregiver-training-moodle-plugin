@@ -178,6 +178,35 @@ final class export_outbox_test extends \advanced_testcase {
         $this->assertSame(0, $calls);
     }
 
+    public function test_outbox_only_delivers_to_https_or_loopback(): void {
+        global $DB;
+        foreach (
+            ['https://adapter.example.com/events', 'http://localhost:9999/events', 'http://127.0.0.1/events',
+                'http://[::1]:8080/events'] as $url
+        ) {
+            $this->assertTrue(config::adapter_url_valid($url), $url);
+        }
+        foreach (
+            ['http://adapter.example.com/events', 'http://127.0.0.1.example.com/', 'ftp://adapter.example.com/',
+                'adapter.example.com/events', ''] as $url
+        ) {
+            $this->assertFalse(config::adapter_url_valid($url), $url);
+        }
+
+        $calls = 0;
+        outbox::$transport = function () use (&$calls) {
+            $calls++;
+            return 200;
+        };
+        set_config('adapterenabled', 1, 'local_caregivertraining');
+        set_config('adapterurl', 'http://adapter.example.com/moodle/events', 'local_caregivertraining');
+        set_config('adaptersecret', 'test-secret-not-real', 'local_caregivertraining');
+        $this->assertSame(0, outbox::deliver_pending()['delivered']);
+        $this->assertSame(0, $calls);
+        $this->assertTrue($DB->record_exists('local_cgt_exception', ['type' => 'adapter_not_configured']));
+        $this->assertContains('adapter_delivery_misconfigured', external\v1_health::execute()['problems']);
+    }
+
     public function test_outbox_signs_retries_and_does_not_resend(): void {
         global $DB;
         set_config('adapterenabled', 1, 'local_caregivertraining');

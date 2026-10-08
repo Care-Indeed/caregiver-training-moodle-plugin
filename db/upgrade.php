@@ -78,8 +78,12 @@ function xmldb_local_caregivertraining_upgrade($oldversion) {
         }
         $cycles = $DB->get_recordset('local_cgt_cycle', ['timeaccessend' => 0], '', 'id, anniversarydate');
         foreach ($cycles as $cycle) {
-            $DB->set_field('local_cgt_cycle', 'timeaccessend',
-                \local_caregivertraining\local\cycle_manager::access_end_time($cycle->anniversarydate), ['id' => $cycle->id]);
+            $DB->set_field(
+                'local_cgt_cycle',
+                'timeaccessend',
+                \local_caregivertraining\local\cycle_manager::access_end_time($cycle->anniversarydate),
+                ['id' => $cycle->id]
+            );
         }
         $cycles->close();
 

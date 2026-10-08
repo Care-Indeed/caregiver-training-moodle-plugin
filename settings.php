@@ -196,7 +196,7 @@ if ($hassiteconfig) {
     $settings->add(new admin_setting_configtext(
         "{$component}/adapterurl",
         get_string('adapterurl', $component),
-        '',
+        get_string('adapterurl_desc', $component),
         '',
         PARAM_URL
     ));

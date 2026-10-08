@@ -75,8 +75,10 @@ final class rest_api_test extends \advanced_testcase {
     public function test_unknown_route_and_wrong_method(): void {
         $response = $this->request('GET', '/v1/nothing');
         $this->assertSame(404, $response['status']);
-        $this->assertSame(['code' => 404, 'error' => 'routenotfound', 'message' => 'No endpoint matches GET /v1/nothing.'],
-            $response['body']);
+        $this->assertSame(
+            ['code' => 404, 'error' => 'routenotfound', 'message' => 'No endpoint matches GET /v1/nothing.'],
+            $response['body']
+        );
 
         $response = $this->request('DELETE', '/v1/cycles/C-1');
         $this->assertSame(405, $response['status']);
@@ -266,8 +268,12 @@ final class rest_api_test extends \advanced_testcase {
         $DB->set_field('external_services', 'enabled', 1, ['id' => $service->id]);
         $DB->insert_record('external_services_users', (object) ['externalserviceid' => $service->id,
             'userid' => $this->adapter->id, 'timecreated' => time()]);
-        $token = \core_external\util::generate_token(EXTERNAL_TOKEN_PERMANENT, $service, $this->adapter->id,
-            \context_system::instance());
+        $token = \core_external\util::generate_token(
+            EXTERNAL_TOKEN_PERMANENT,
+            $service,
+            $this->adapter->id,
+            \context_system::instance()
+        );
         $this->setUser(null);
         $this->assertNull(rest_api::authenticate('Bearer ' . $token));
         $this->assertEquals($this->adapter->id, $GLOBALS['USER']->id);

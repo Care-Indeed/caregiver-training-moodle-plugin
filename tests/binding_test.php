@@ -177,7 +177,8 @@ final class binding_test extends \advanced_testcase {
         $this->assertSame('PR-1001', $values['payrollnumber']);
         $this->assertSame('HCA-1', $values['hcanumber']);
         $this->assertSame('2025-06-30', $values['registrationdate']);
-        $this->assertSame($values['registrationdate'], profile_fields::load((int) $created['userid'])[profile_fields::REGISTRATIONDATE]);
+        $profile = profile_fields::load((int) $created['userid']);
+        $this->assertSame($values['registrationdate'], $profile[profile_fields::REGISTRATIONDATE]);
     }
 
     public function test_not_found_without_create_flag(): void {

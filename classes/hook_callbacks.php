@@ -53,21 +53,23 @@ class hook_callbacks {
         $now = time();
         switch ($cycle->status) {
             case 'scheduled':
-                $lines[] = get_string('banner_scheduled', config::COMPONENT,
-                    $bold($datestr(cycle_manager::open_date($cycle->anniversarydate))));
+                $lines[] = get_string(
+                    'banner_scheduled',
+                    config::COMPONENT,
+                    $bold($datestr(cycle_manager::open_date($cycle->anniversarydate)))
+                );
                 break;
             case 'completed':
                 $lines[] = get_string('banner_complete', config::COMPONENT, $bold(userdate($cycle->timecompleted, $fmt, $tz)));
                 break;
             default:
                 $lines[] = get_string('banner_due', config::COMPONENT, $bold($datestr($cycle->anniversarydate)));
-                if ($now <= $cycle->timedue) {
-                    $days = (int) floor(($cycle->timedue - $now) / DAYSECS);
+                $days = cycle_manager::days_until($cycle->anniversarydate, $now);
+                if ($days >= 0) {
                     $key = $days === 1 ? 'banner_dayremaining' : 'banner_daysremaining';
                     $lines[] = $bold(get_string($key, config::COMPONENT, $days));
                 } else {
-                    $days = (int) ceil(($now - $cycle->timedue) / DAYSECS);
-                    $lines[] = $bold(get_string('banner_overdue', config::COMPONENT, (object) ['days' => $days,
+                    $lines[] = $bold(get_string('banner_overdue', config::COMPONENT, (object) ['days' => -$days,
                         'accessend' => $datestr(cycle_manager::access_end_date($cycle->anniversarydate))]));
                 }
         }
@@ -129,8 +131,10 @@ class hook_callbacks {
         if (!$cycle || !in_array($cycle->status, ['open', 'completed'], true)) {
             return;
         }
-        if (!in_array($PAGE->pagelayout, ['course', 'incourse'], true)
-                || in_array($PAGE->pagetype, ['mod-quiz-attempt', 'mod-quiz-summary'], true)) {
+        if (
+            !in_array($PAGE->pagelayout, ['course', 'incourse'], true)
+                || in_array($PAGE->pagetype, ['mod-quiz-attempt', 'mod-quiz-summary'], true)
+        ) {
             return;
         }
 

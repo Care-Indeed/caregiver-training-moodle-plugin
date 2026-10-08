@@ -92,7 +92,7 @@ class outbox {
         if (!$result['enabled']) {
             return $result;
         }
-        if ($url === '' || $secret === '' || !preg_match('#^https?://#', $url)) {
+        if ($secret === '' || !config::adapter_url_valid($url)) {
             exceptions::raise('adapter_not_configured', ['key' => 'outbox']);
             return $result;
         }

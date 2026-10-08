@@ -189,8 +189,12 @@ class binding_manager {
         }
         $select = "payrollnumber = :value AND alayacareid <> :alayacareid";
         if ($DB->record_exists_select('local_cgt_binding', $select, ['value' => $payrollnumber, 'alayacareid' => $alayacareid])) {
-            exceptions::raise('duplicate_payrollnumber', ['key' => $payrollnumber, 'field' => 'payrollnumber'], null,
-                $alayacareid);
+            exceptions::raise(
+                'duplicate_payrollnumber',
+                ['key' => $payrollnumber, 'field' => 'payrollnumber'],
+                null,
+                $alayacareid
+            );
             throw new \moodle_exception(
                 'error:bindingconflict',
                 config::COMPONENT,

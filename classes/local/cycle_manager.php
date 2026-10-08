@@ -119,6 +119,22 @@ class cycle_manager {
     }
 
     /**
+     * Calendar days from today (compliance timezone) to a date; negative once the date has passed.
+     * Counted on dates rather than seconds so daylight-saving changes cannot shift the count.
+     *
+     * @param string $date YYYY-MM-DD
+     * @param int|null $now
+     * @return int
+     */
+    public static function days_until(string $date, ?int $now = null): int {
+        $utc = new \DateTimeZone('UTC');
+        $today = (new \DateTimeImmutable('@' . ($now ?? time())))->setTimezone(config::timezone())->format('Y-m-d');
+        $from = \DateTimeImmutable::createFromFormat('!Y-m-d', $today, $utc);
+        $to = \DateTimeImmutable::createFromFormat('!Y-m-d', self::parse_date($date), $utc);
+        return (int) $from->diff($to)->format('%r%a');
+    }
+
+    /**
      * Get a cycle by Cycle ID.
      *
      * @param string $cycleid
@@ -222,8 +238,12 @@ class cycle_manager {
                 $done = $DB->get_records('local_cgt_cycle', ['userid' => $userid, 'courseid' => $course->id,
                     'status' => 'completed', 'anniversarydate' => $anniversarydate], 'id ASC', 'id, cycleid', 0, 1);
                 if ($done = reset($done)) {
-                    throw new \moodle_exception('error:alreadycompleted', config::COMPONENT, '',
-                        (object) ['cycleid' => $done->cycleid, 'anniversarydate' => $anniversarydate]);
+                    throw new \moodle_exception(
+                        'error:alreadycompleted',
+                        config::COMPONENT,
+                        '',
+                        (object) ['cycleid' => $done->cycleid, 'anniversarydate' => $anniversarydate]
+                    );
                 }
                 $supersedes = trim((string) ($p['supersedescycleid'] ?? ''));
                 [$insql, $inparams] = $DB->get_in_or_equal(self::ACTIVE_STATUSES, SQL_PARAMS_NAMED);

@@ -93,6 +93,14 @@ final class cycle_test extends \advanced_testcase {
         $this->assertSame(25 * HOURSECS - 1, cycle_manager::end_of_day('2026-11-01') - cycle_manager::start_of_day('2026-11-01'));
         $this->assertSame('2028-02-29 23:59:59', $fmt(cycle_manager::end_of_day('2028-02-29')));
 
+        // Day counts follow the calendar, including across the November fall-back.
+        $justaftermidnight = cycle_manager::start_of_day('2026-10-08') + 15 * MINSECS;
+        $this->assertSame(30, cycle_manager::days_until('2026-11-07', $justaftermidnight));
+        $this->assertSame(30, cycle_manager::days_until('2026-11-07', cycle_manager::end_of_day('2026-10-08')));
+        $this->assertSame(0, cycle_manager::days_until('2026-11-07', cycle_manager::end_of_day('2026-11-07')));
+        $this->assertSame(-1, cycle_manager::days_until('2026-10-31', cycle_manager::start_of_day('2026-11-01')));
+        $this->assertSame(-1, cycle_manager::days_until('2026-10-31', cycle_manager::end_of_day('2026-11-01')));
+
         foreach (['2026-02-30', '2026-13-01', '26-01-01', '2026-1-1', '2026-01-01T00:00', ''] as $bad) {
             try {
                 cycle_manager::parse_date($bad);
@@ -184,8 +192,11 @@ final class cycle_test extends \advanced_testcase {
         $this->assert_error('error:alreadycompleted', fn() => $this->cycle($a, 'A-1-DUP', 30, ['supersedescycleid' => 'A-1']));
         $this->assertNull(cycle_manager::get('A-1-DUP'));
         $this->assertSame('completed', cycle_manager::get('A-1')->status);
-        $this->assertEquals($snapshots, $DB->count_records('local_cgt_snapshot', ['userid' => $a->user->id]),
-            'finished progress is not reset');
+        $this->assertEquals(
+            $snapshots,
+            $DB->count_records('local_cgt_snapshot', ['userid' => $a->user->id]),
+            'finished progress is not reset'
+        );
 
         $this->assertSame('created', $this->cycle($a, 'A-2', 395)['action'], 'the next anniversary is still allowed');
     }

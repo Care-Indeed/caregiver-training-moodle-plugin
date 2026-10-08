@@ -776,6 +776,8 @@ Known gap:
 ## Outbound event: `cycle.completed`
 
 When a cycle completes, the plugin queues exactly one event for it and `POST`s it to the configured adapter URL.
+The URL must use `https://` (plain `http://` is accepted only for `localhost`). Otherwise nothing is sent, an
+`adapter_not_configured` exception is raised, and `v1_health` reports `adapter_delivery_misconfigured`.
 Failed deliveries are retried with exponential backoff (up to 6 hours between attempts, `maxattempts` attempts in
 total).
 
