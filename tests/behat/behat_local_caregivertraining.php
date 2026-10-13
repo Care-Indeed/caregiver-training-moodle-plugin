@@ -63,4 +63,33 @@ class behat_local_caregivertraining extends behat_base {
         cycle_manager::upsert(['cycleid' => $cycleid, 'userid' => $user->id, 'alayacareid' => $alayacareid,
             'anniversarydate' => $day($due)]);
     }
+
+    /**
+     * Mark annual course activities complete for a learner.
+     *
+     * @Given /^caregiver "(?P<username>[^"]*)" has completed (?P<which>every|the last) annual training activit(?:y|ies)$/
+     * @param string $username
+     * @param string $which every or the last
+     */
+    public function caregiver_has_completed_activities(string $username, string $which): void {
+        global $CFG, $DB;
+        require_once($CFG->libdir . '/completionlib.php');
+        $userid = (int) $DB->get_field('user', 'id', ['username' => $username], MUST_EXIST);
+        $course = get_course(config::course_id());
+        $cms = array_values(get_fast_modinfo($course)->get_cms());
+        $completion = new completion_info($course);
+        foreach ($which === 'every' ? $cms : [end($cms)] as $cm) {
+            $completion->update_state($cm, COMPLETION_COMPLETE, $userid);
+        }
+    }
+
+    /**
+     * Open the last activity of the annual course.
+     *
+     * @Given /^I am on the last annual training activity$/
+     */
+    public function i_am_on_the_last_annual_training_activity(): void {
+        $cms = get_fast_modinfo(config::course_id())->get_cms();
+        $this->execute('behat_general::i_visit', [end($cms)->url->out_as_local_url(false)]);
+    }
 }

@@ -17,6 +17,21 @@ Feature: Caregiver annual training learner experience and administrator view
     And I click on "Next activity" "link"
     Then I should see "Lesson"
 
+  Scenario: Learner who finished everything sees that on the last activity
+    Given caregiver "cg1" has completed every annual training activity
+    And I log in as "cg1"
+    When I am on the last annual training activity
+    Then I should see "All available activities are complete."
+    And I should not see "Complete this activity to unlock the next one."
+    And "Next activity" "link" should not exist
+
+  Scenario: Learner who skipped ahead is sent back to the first unfinished activity
+    Given caregiver "cg1" has completed the last annual training activity
+    And I log in as "cg1"
+    When I am on the last annual training activity
+    And I click on "Next activity" "link"
+    Then I should see "Lesson"
+
   Scenario: Overdue learner keeps access for 14 days after the due date
     Given I log in as "cg2"
     And I am on "Synthetic annual caregiver training" course homepage
