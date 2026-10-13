@@ -139,8 +139,19 @@ class hook_callbacks {
         }
 
         $courseid = (int) $cycle->courseid;
+        $course = get_course($courseid);
         $aftercmid = $PAGE->cm ? (int) $PAGE->cm->id : 0;
-        if (next_activity::find(get_course($courseid), (int) $USER->id, $aftercmid)) {
+        $next = next_activity::find($course, (int) $USER->id, $aftercmid);
+        $unfinished = $next;
+        if (!$next && $aftercmid) {
+            // Nothing follows this page, but an earlier activity may still be unfinished.
+            $unfinished = next_activity::find($course, (int) $USER->id);
+            if ($unfinished && (int) $unfinished->id !== $aftercmid) {
+                $next = $unfinished;
+                $aftercmid = 0;
+            }
+        }
+        if ($next) {
             $params = ['courseid' => $courseid] + ($aftercmid ? ['cmid' => $aftercmid] : []);
             $content = \html_writer::link(
                 new \moodle_url('/local/caregivertraining/next.php', $params),
@@ -149,7 +160,7 @@ class hook_callbacks {
             );
         } else {
             $content = \html_writer::span(
-                get_string($aftercmid ? 'nextactivity_locked' : 'nonextactivity', config::COMPONENT),
+                get_string($unfinished ? 'nextactivity_locked' : 'nonextactivity', config::COMPONENT),
                 'text-muted'
             );
         }
