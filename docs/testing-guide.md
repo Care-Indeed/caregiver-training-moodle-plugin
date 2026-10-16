@@ -158,11 +158,12 @@ while you were idle for more than 2 minutes.
 
 1. As caregiver.one, look at the bottom of the course page and of each activity.
 
-**You should see** a blue **Next activity** button that takes you to the next unfinished activity. On an activity
-that isn't finished yet it may say *"Complete this activity to unlock the next one."* Once everything is finished it
-says *"All available activities are complete."*, including on the last activity.
+**You should see** a blue **Next activity** button at the bottom of each activity that takes you to the next
+unfinished activity. On an activity that isn't finished yet it may say *"Complete this activity to unlock the next
+one."* There is no button on the course page or on the last activity.
 
 - [ ] The button leads to the next activity.
+- [ ] No button on the course page or the last activity.
 
 ### Scenario D. Counting stops when the time requirement is met
 

@@ -896,19 +896,16 @@ locked case, add an access restriction to activity 2 ("Activity completion: acti
 1. Course page: look under the content.
 2. Activity 1 (not done): click **Next activity**.
 3. With the restriction on activity 2 and activity 1 not done: view activity 1.
-4. Mark everything done; view the course page and the last activity.
-5. Leave activity 1 unfinished, mark the last activity done, and view the last activity.
-6. Start a quiz attempt.
+4. View the last activity, both with everything done and with earlier activities unfinished.
+5. Start a quiz attempt.
 
 **Expected result:**
 
-1. A blue **Next activity** button that leads to the first unfinished, available activity
-   (`/local/caregivertraining/next.php?courseid=<COURSE_ID>`).
+1. No button and no text on the course page.
 2. Goes to the next unfinished activity **after** the current one in course order (`next.php?courseid=…&cmid=…`).
 3. No button; text "Complete this activity to unlock the next one."
-4. Course page and last activity page: "All available activities are complete."
-5. A **Next activity** button that goes back to activity 1 (`next.php?courseid=<COURSE_ID>`, no `cmid`).
-6. No button on the quiz attempt and summary pages. No button at all for learners whose cycle is scheduled or blocked.
+4. No button and no text on the last activity.
+5. No button on the quiz attempt and summary pages. No button at all for learners whose cycle is scheduled or blocked.
 
 **How to verify:** the URL after clicking; activity completion on the course page.
 
@@ -1061,7 +1058,7 @@ cd ../moodle && rg -ni "externalid|payrollid|opendate|duedate" docker docs/careg
 | E2 | Features | Snapshot/history dashboard | `completion` + `prereset` snapshots, verified, certificate links | | |
 | E3 | Features | Minimum 5 hours | 17999 → not met; 18000 and 18001 → completed | | |
 | E4 | Features | Time tracker UI | 30 s beats; hidden/idle/concurrent earn nothing; stops at requirement | | |
-| E5 | Features | Next activity button | Goes to next unfinished; locked text; "all complete" on last page; back to earlier unfinished; none on quiz attempts | | |
+| E5 | Features | Next activity button | Activity pages only; goes to next unfinished; locked text; none on the last activity or quiz attempts | | |
 | E6 | Features | CSV export | `caregiver-training-YYYYMMDD-HHMMSS.csv`, 26 columns, exact-match filter | | |
 | F1 | Field changes | `externalId` removed | Absent from API, webhook, UI, CSV, DB, docs | | |
 | F2 | Field changes | `payrollnumber` | Present in API, webhook, UI, CSV, DB, docs | | |

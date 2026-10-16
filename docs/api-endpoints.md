@@ -905,7 +905,8 @@ snapshotsha256, snapshotcreated, snapshotretainuntil, snapshotcounts, certificat
 GET /local/caregivertraining/next.php?courseid={courseid}&cmid={cmid}
 ```
 
-This is the target of the learner's **Next activity** button on annual course pages.
+This is the target of the learner's **Next activity** button on annual course activity pages (not the course page
+or the last activity).
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |

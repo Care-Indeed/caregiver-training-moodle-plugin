@@ -84,12 +84,14 @@ class behat_local_caregivertraining extends behat_base {
     }
 
     /**
-     * Open the last activity of the annual course.
+     * Open the first or last activity of the annual course.
      *
-     * @Given /^I am on the last annual training activity$/
+     * @Given /^I am on the (?P<which>first|last) annual training activity$/
+     * @param string $which first or last
      */
-    public function i_am_on_the_last_annual_training_activity(): void {
-        $cms = get_fast_modinfo(config::course_id())->get_cms();
-        $this->execute('behat_general::i_visit', [end($cms)->url->out_as_local_url(false)]);
+    public function i_am_on_an_annual_training_activity(string $which): void {
+        $cms = array_values(get_fast_modinfo(config::course_id())->get_cms());
+        $cm = $which === 'first' ? reset($cms) : end($cms);
+        $this->execute('behat_general::i_visit', [$cm->url->out_as_local_url(false)]);
     }
 }

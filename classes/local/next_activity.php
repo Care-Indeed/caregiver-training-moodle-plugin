@@ -63,4 +63,37 @@ class next_activity {
         }
         return null;
     }
+
+    /**
+     * Whether no completion-tracked activity the learner can see on the course page, locked or not,
+     * follows this one in course order.
+     *
+     * @param \stdClass $course
+     * @param int $userid
+     * @param int $cmid
+     * @return bool
+     */
+    public static function is_last(\stdClass $course, int $userid, int $cmid): bool {
+        global $CFG;
+        require_once($CFG->libdir . '/completionlib.php');
+        $modinfo = get_fast_modinfo($course, $userid);
+        $completion = new \completion_info($course);
+        $after = false;
+        foreach ($modinfo->get_section_info_all() as $section) {
+            foreach ($modinfo->sections[$section->section] ?? [] as $id) {
+                if (!$after) {
+                    $after = ($id == $cmid);
+                    continue;
+                }
+                $cm = $modinfo->cms[$id];
+                if (
+                    $section->visible && $cm->is_visible_on_course_page() && $cm->has_view() && !$cm->deletioninprogress
+                        && $completion->is_enabled($cm) != COMPLETION_TRACKING_NONE
+                ) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
 }

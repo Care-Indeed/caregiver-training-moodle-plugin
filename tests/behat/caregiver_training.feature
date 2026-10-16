@@ -14,23 +14,24 @@ Feature: Caregiver annual training learner experience and administrator view
     And I am on "Synthetic annual caregiver training" course homepage
     Then I should see "30 days remaining"
     And I should see "completion is on hold"
+    And "Next activity" "link" should not exist
+    When I am on the first annual training activity
     And I click on "Next activity" "link"
-    Then I should see "Lesson"
+    Then I should see "Quiz"
 
-  Scenario: Learner who finished everything sees that on the last activity
+  Scenario: The last activity shows no next activity action
     Given caregiver "cg1" has completed every annual training activity
     And I log in as "cg1"
     When I am on the last annual training activity
-    Then I should see "All available activities are complete."
+    Then "Next activity" "link" should not exist
+    And I should not see "All available activities are complete."
     And I should not see "Complete this activity to unlock the next one."
-    And "Next activity" "link" should not exist
 
-  Scenario: Learner who skipped ahead is sent back to the first unfinished activity
+  Scenario: The last activity shows no next activity action while earlier ones are unfinished
     Given caregiver "cg1" has completed the last annual training activity
     And I log in as "cg1"
     When I am on the last annual training activity
-    And I click on "Next activity" "link"
-    Then I should see "Lesson"
+    Then "Next activity" "link" should not exist
 
   Scenario: Overdue learner keeps access for 14 days after the due date
     Given I log in as "cg2"

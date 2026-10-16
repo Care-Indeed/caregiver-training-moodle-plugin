@@ -120,7 +120,8 @@ class hook_callbacks {
     }
 
     /**
-     * Render the Next activity button below the page's main content.
+     * Render the Next activity button below an activity's main content. The course page and the
+     * course's last activity show nothing.
      *
      * @param \core\hook\output\before_footer_html_generation $hook
      */
@@ -132,7 +133,7 @@ class hook_callbacks {
             return;
         }
         if (
-            !in_array($PAGE->pagelayout, ['course', 'incourse'], true)
+            !$PAGE->cm || !in_array($PAGE->pagelayout, ['course', 'incourse'], true)
                 || in_array($PAGE->pagetype, ['mod-quiz-attempt', 'mod-quiz-summary'], true)
         ) {
             return;
@@ -140,10 +141,13 @@ class hook_callbacks {
 
         $courseid = (int) $cycle->courseid;
         $course = get_course($courseid);
-        $aftercmid = $PAGE->cm ? (int) $PAGE->cm->id : 0;
+        $aftercmid = (int) $PAGE->cm->id;
+        if (next_activity::is_last($course, (int) $USER->id, $aftercmid)) {
+            return;
+        }
         $next = next_activity::find($course, (int) $USER->id, $aftercmid);
         $unfinished = $next;
-        if (!$next && $aftercmid) {
+        if (!$next) {
             // Nothing follows this page, but an earlier activity may still be unfinished.
             $unfinished = next_activity::find($course, (int) $USER->id);
             if ($unfinished && (int) $unfinished->id !== $aftercmid) {

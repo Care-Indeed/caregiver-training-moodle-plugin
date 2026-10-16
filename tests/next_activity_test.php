@@ -51,4 +51,27 @@ final class next_activity_test extends \advanced_testcase {
         $this->assertSame((int) $third->cmid, (int) next_activity::find($course, (int) $user->id, (int) $first->cmid)->id);
         $this->assertNull(next_activity::find($course, (int) $user->id, (int) $third->cmid));
     }
+
+    public function test_is_last_counts_locked_but_listed_activities(): void {
+        global $CFG;
+        require_once($CFG->libdir . '/completionlib.php');
+        $this->resetAfterTest();
+        $CFG->enablecompletion = 1;
+
+        $gen = $this->getDataGenerator();
+        $course = $gen->create_course(['enablecompletion' => 1]);
+        $user = $gen->create_and_enrol($course, 'student');
+        $manual = ['completion' => COMPLETION_TRACKING_MANUAL];
+        $first = $gen->create_module('page', ['course' => $course->id] + $manual);
+        $restriction = json_encode(['op' => '&', 'showc' => [true], 'c' => [
+            ['type' => 'completion', 'cm' => (int) $first->cmid, 'e' => COMPLETION_COMPLETE],
+        ]]);
+        $locked = $gen->create_module('page', ['course' => $course->id, 'availability' => $restriction] + $manual);
+        $gen->create_module('label', ['course' => $course->id]);
+
+        $this->assertNull(next_activity::find($course, (int) $user->id, (int) $first->cmid), 'the next one is locked');
+        $this->assertFalse(next_activity::is_last($course, (int) $user->id, (int) $first->cmid));
+        $this->assertTrue(next_activity::is_last($course, (int) $user->id, (int) $locked->cmid),
+            'a trailing label without completion does not count');
+    }
 }
