@@ -279,7 +279,7 @@ Body:
     "certificate": {
       "code": "<certificate code>",
       "issueid": <issue id>,
-      "verifyurl": "http://localhost:8080/mod/customcert/verify_certificate.php?code=<certificate code>"
+      "verifyurl": "http://localhost:8080/mod/customcert/verify_certificate.php?contextid=<certificate context id>&code=<certificate code>"
     }
   }
 }

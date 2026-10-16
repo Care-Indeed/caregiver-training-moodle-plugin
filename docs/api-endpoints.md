@@ -618,7 +618,7 @@ No parameters. Returns configuration and queue health without personal data.
 | `outbox` | Event counts: `pending`, `failed`. |
 | `openexceptions` | Exceptions awaiting review. |
 | `processcycleslastrun` | Last run of the cycle-processing task. |
-| `problems` | `course_not_configured`, `certificate_not_configured`, `time_policy_unresolved`, `adapter_delivery_misconfigured`, `process_cycles_stale`. |
+| `problems` | `course_not_configured`, `certificate_not_configured`, `certificate_verification_not_public` (the certificate doesn't let anyone verify, so `verifyurl` would ask for a login), `time_policy_unresolved`, `adapter_delivery_misconfigured`, `process_cycles_stale`. |
 | `servertime` | Server time. |
 
 ### `local_caregivertraining_v1_record_heartbeat` (browser only)
@@ -821,7 +821,7 @@ Body:
     "certificate": {
       "code": "AbC123XyZ9",
       "issueid": 77,
-      "verifyurl": "https://moodle.example.com/mod/customcert/verify_certificate.php?code=AbC123XyZ9"
+      "verifyurl": "https://moodle.example.com/mod/customcert/verify_certificate.php?contextid=6098&code=AbC123XyZ9"
     }
   }
 }

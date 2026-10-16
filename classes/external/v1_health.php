@@ -57,6 +57,9 @@ class v1_health extends adapter_api {
         $cm = $cmid ? get_coursemodule_from_id('customcert', $cmid) : false;
         if (!$cm || (int) $cm->course !== $courseid) {
             $problems[] = 'certificate_not_configured';
+        } else if (!$DB->get_field('customcert', 'verifyany', ['id' => $cm->instance])) {
+            // The verifyurl in completion events would ask employers to log in.
+            $problems[] = 'certificate_verification_not_public';
         }
         if (config::time_policy() === config::POLICY_UNRESOLVED) {
             $problems[] = 'time_policy_unresolved';

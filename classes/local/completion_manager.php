@@ -198,12 +198,31 @@ class completion_manager {
             'certificate' => [
                 'code' => $cycle->certificatecode,
                 'issueid' => (int) $cycle->certificateissueid,
-                'verifyurl' => (new \moodle_url(
-                    '/mod/customcert/verify_certificate.php',
-                    ['code' => $cycle->certificatecode]
-                ))->out(false),
+                'verifyurl' => self::verify_url($cycle),
             ],
         ];
+    }
+
+    /**
+     * Public verification page for the cycle's certificate.
+     *
+     * customcert only lets anonymous visitors verify within one certificate's context (and only when that
+     * certificate allows anyone to verify); without a context it checks the whole site, which needs a login.
+     *
+     * @param \stdClass $cycle
+     * @return string
+     */
+    public static function verify_url(\stdClass $cycle): string {
+        global $DB;
+        $params = ['code' => $cycle->certificatecode];
+        $customcertid = $cycle->certificateissueid
+            ? $DB->get_field('customcert_issues', 'customcertid', ['id' => $cycle->certificateissueid])
+            : false;
+        $cm = $customcertid ? get_coursemodule_from_instance('customcert', $customcertid) : false;
+        if ($cm) {
+            $params = ['contextid' => \context_module::instance($cm->id)->id] + $params;
+        }
+        return (new \moodle_url('/mod/customcert/verify_certificate.php', $params))->out(false);
     }
 
     /**

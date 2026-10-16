@@ -107,7 +107,10 @@ final class completion_test extends \advanced_testcase {
         $this->assertSame($cycle->certificatecode, $event['data']['certificate']['code']);
         $this->assertSame((int) $cycle->certificateissueid, $event['data']['certificate']['issueid']);
         $this->assertSame(
-            (new \moodle_url('/mod/customcert/verify_certificate.php', ['code' => $cycle->certificatecode]))->out(false),
+            (new \moodle_url('/mod/customcert/verify_certificate.php', [
+                'contextid' => \context_module::instance($this->fixture->customcert->cmid)->id,
+                'code' => $cycle->certificatecode,
+            ]))->out(false),
             $event['data']['certificate']['verifyurl']
         );
         $this->assertTrue($event['data']['ontime']);

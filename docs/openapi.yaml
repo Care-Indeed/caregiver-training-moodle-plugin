@@ -829,6 +829,7 @@ components:
             enum:
               - course_not_configured
               - certificate_not_configured
+              - certificate_verification_not_public
               - time_policy_unresolved
               - adapter_delivery_misconfigured
               - process_cycles_stale

@@ -136,6 +136,7 @@ final class external_test extends \advanced_testcase {
     }
 
     public function test_cycle_upsert_and_reconcile_round_trip(): void {
+        global $DB;
         $this->setUser($this->adapter);
         $learner = $this->provision('prov-1');
         $anniversary = (new \DateTimeImmutable('now', config::timezone()))->modify('+30 days')->format('Y-m-d');
@@ -164,6 +165,12 @@ final class external_test extends \advanced_testcase {
         $this->assertSame('v1', $health['contract']);
         $this->assertContains('time_policy_unresolved', $health['problems']);
         $this->assertFalse($health['adapterdelivery']);
+
+        $customcertid = get_coursemodule_from_id('customcert', local\config::certificate_cmid())->instance;
+        $DB->set_field('customcert', 'verifyany', 0, ['id' => $customcertid]);
+        $this->assertContains('certificate_verification_not_public', v1_health::execute()['problems']);
+        $DB->set_field('customcert', 'verifyany', 1, ['id' => $customcertid]);
+        $this->assertNotContains('certificate_verification_not_public', v1_health::execute()['problems']);
     }
 
     public function test_heartbeat_requires_enrolled_learner_in_annual_course(): void {

@@ -238,7 +238,8 @@ final class export_outbox_test extends \advanced_testcase {
             $data = json_decode($request['body'], true)['data'];
             $this->assertSame($this->a->alayacareid, $data['alayacareid']);
             $this->assertSame((int) $this->a->user->id, $data['moodleuserid']);
-            $this->assertStringContainsString('/mod/customcert/verify_certificate.php?code=', $data['certificate']['verifyurl']);
+            $this->assertMatchesRegularExpression('~/mod/customcert/verify_certificate\.php\?contextid=\d+&code=~',
+                $data['certificate']['verifyurl']);
             $this->assertStringNotContainsString('test-secret-not-real', $request['url'] . $request['body']);
             $expected = 'v1=' . hash_hmac(
                 'sha256',
