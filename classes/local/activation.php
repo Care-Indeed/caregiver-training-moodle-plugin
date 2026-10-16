@@ -68,8 +68,19 @@ class activation {
             'loginurl' => $CFG->wwwroot . '/login/index.php',
             'expiry' => $expiry,
         ];
-        $subject = get_string('activation_subject', config::COMPONENT, format_string($site->fullname));
-        $body = get_string('activation_body', config::COMPONENT, $a);
-        return (bool) email_to_user($user, \core_user::get_noreply_user(), $subject, $body);
+        $component = config::COMPONENT;
+        $subject = get_string('activation_subject', $component, format_string($site->fullname));
+        $email = email::render([
+            'subject' => $subject,
+            'preheader' => get_string('email_preheader_activation', $component),
+            'label' => get_string('email_label_activation', $component),
+            'tone' => 'info',
+            'heading' => get_string('activation_heading', $component),
+            'body' => get_string('activation_intro', $component, $a),
+            'details' => [[get_string('email_detail_username', $component), $user->username]],
+            'cta' => ['url' => $a->link, 'label' => get_string('email_cta_activation', $component)],
+            'note' => get_string('activation_note', $component, $a),
+        ]);
+        return (bool) email_to_user($user, \core_user::get_noreply_user(), $subject, $email['text'], $email['html']);
     }
 }

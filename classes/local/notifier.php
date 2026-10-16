@@ -173,28 +173,109 @@ class notifier {
      * @return string
      */
     public static function render(\stdClass $cycle, \stdClass $user, string $text): string {
-        $format = fn(string $date) => userdate(
-            cycle_manager::start_of_day($date) + 12 * HOURSECS,
-            get_string('strftimedatefullshort', 'langconfig'),
-            config::timezone()->getName()
-        );
-        $certurl = '';
-        if ($cmid = config::certificate_cmid()) {
-            // customcert only serves downloadown to a POST with a sesskey, so an emailed link must open the activity page.
-            $certurl = (new \moodle_url('/mod/customcert/view.php', ['id' => $cmid]))->out(false);
-        }
         $replacements = [
             '{firstname}' => $user->firstname,
             '{lastname}' => $user->lastname,
-            '{opendate}' => $format(cycle_manager::open_date($cycle->anniversarydate)),
-            '{duedate}' => $format($cycle->anniversarydate),
-            '{accessenddate}' => $format(cycle_manager::access_end_date($cycle->anniversarydate)),
-            '{courseurl}' => (new \moodle_url('/course/view.php', ['id' => $cycle->courseid]))->out(false),
+            '{opendate}' => self::format_date(cycle_manager::open_date($cycle->anniversarydate)),
+            '{duedate}' => self::format_date($cycle->anniversarydate),
+            '{accessenddate}' => self::format_date(cycle_manager::access_end_date($cycle->anniversarydate)),
+            '{courseurl}' => self::course_url($cycle),
             '{cycleid}' => $cycle->cycleid,
             '{certificatecode}' => (string) $cycle->certificatecode,
-            '{certificateurl}' => $certurl,
+            '{certificateurl}' => self::certificate_url(),
         ];
         return strtr($text, $replacements);
+    }
+
+    /**
+     * Format a Y-m-d compliance date for an email, e.g. "November 12, 2026".
+     *
+     * @param string $date
+     * @return string
+     */
+    private static function format_date(string $date): string {
+        return email::date(cycle_manager::start_of_day($date) + 12 * HOURSECS);
+    }
+
+    /**
+     * Annual course URL.
+     *
+     * @param \stdClass $cycle
+     * @return string
+     */
+    private static function course_url(\stdClass $cycle): string {
+        return (new \moodle_url('/course/view.php', ['id' => $cycle->courseid]))->out(false);
+    }
+
+    /**
+     * Certificate activity URL, or an empty string when no certificate is configured.
+     *
+     * @return string
+     */
+    private static function certificate_url(): string {
+        $cmid = config::certificate_cmid();
+        // customcert only serves downloadown to a POST with a sesskey, so an emailed link must open the activity page.
+        return $cmid ? (new \moodle_url('/mod/customcert/view.php', ['id' => $cmid]))->out(false) : '';
+    }
+
+    /**
+     * Build the branded email for a notification type.
+     *
+     * @param \stdClass $cycle
+     * @param \stdClass $user
+     * @param string $type
+     * @param string $subject rendered subject
+     * @param string $body rendered body
+     * @param \stored_file|null $attachment attached certificate file
+     * @param string $hrcopy HR copy banner, empty for the learner
+     * @return array{html: string, text: string}
+     */
+    private static function compose(\stdClass $cycle, \stdClass $user, string $type, string $subject, string $body,
+            ?\stored_file $attachment, string $hrcopy = ''): array {
+        $component = config::COMPONENT;
+        $duedate = self::format_date($cycle->anniversarydate);
+        $cta = ['url' => self::course_url($cycle), 'label' => get_string("email_cta_{$type}", $component)];
+        $note = '';
+        switch ($type) {
+            case 'completion':
+                $details = [];
+                if ($cycle->certificatecode) {
+                    $details[] = [get_string('email_detail_certificatecode', $component), $cycle->certificatecode];
+                }
+                if ($cycle->timecompleted) {
+                    $details[] = [get_string('email_detail_completedon', $component), email::date((int) $cycle->timecompleted)];
+                }
+                $cta['url'] = self::certificate_url() ?: $cta['url'];
+                if ($attachment) {
+                    $note = get_string('email_certificate_attached', $component);
+                }
+                break;
+            case 'overdue':
+                $details = [
+                    [get_string('email_detail_wasdue', $component), $duedate],
+                    [get_string('email_detail_accessend', $component),
+                        self::format_date(cycle_manager::access_end_date($cycle->anniversarydate))],
+                ];
+                break;
+            default:
+                $details = [[get_string('email_detail_completeby', $component), $duedate]];
+        }
+        return email::render([
+            'subject' => $subject,
+            'preheader' => get_string("email_preheader_{$type}", $component, $duedate),
+            'label' => get_string("email_label_{$type}", $component),
+            'tone' => match ($type) {
+                'due', 'overdue' => 'alert',
+                'completion' => 'success',
+                default => 'info',
+            },
+            'heading' => get_string("email_heading_{$type}", $component),
+            'body' => $body,
+            'details' => $details,
+            'cta' => $cta,
+            'note' => $note,
+            'hrcopy' => $hrcopy,
+        ]);
     }
 
     /**
@@ -209,8 +290,11 @@ class notifier {
         if (!empty($user->deleted) || !empty($user->suspended)) {
             return false;
         }
+        $certificate = $type === 'completion' ? self::certificate_file($cycle) : null;
         $subject = self::render($cycle, $user, config::template($type, 'subject'));
         $body = self::render($cycle, $user, config::template($type, 'body'));
+        $email = self::compose($cycle, $user, $type, $subject, $body, $certificate);
+        $attachname = $certificate ? 'certificate-' . $certificate->get_filename() : '';
 
         $message = new \core\message\message();
         $message->component = config::COMPONENT;
@@ -218,28 +302,33 @@ class notifier {
         $message->userfrom = \core_user::get_noreply_user();
         $message->userto = $user;
         $message->subject = $subject;
-        $message->fullmessage = $body;
+        $message->fullmessage = $email['text'];
         $message->fullmessageformat = FORMAT_PLAIN;
-        $message->fullmessagehtml = text_to_html(s($body), false, false, true);
+        $message->fullmessagehtml = $email['html'];
         $message->smallmessage = $subject;
         $message->notification = 1;
-        $message->contexturl = (new \moodle_url('/course/view.php', ['id' => $cycle->courseid]))->out(false);
+        $message->contexturl = self::course_url($cycle);
         $message->contexturlname = get_string('banner_title', config::COMPONENT);
         $message->courseid = $cycle->courseid;
-        $certificate = $type === 'completion' ? self::certificate_file($cycle) : null;
         if ($certificate) {
             $message->attachment = $certificate;
-            $message->attachname = $certificate->get_filename();
+            $message->attachname = $attachname;
         }
         if (!message_send($message)) {
             return false;
         }
 
+        $hremails = config::hr_cc_emails();
+        if (!$hremails) {
+            return true;
+        }
+        $hrcopy = self::compose($cycle, $user, $type, $subject, $body, $certificate,
+            get_string('email_hrcopy', config::COMPONENT, ['name' => fullname($user), 'email' => $user->email]));
         $hrattachment = $certificate ? $certificate->copy_content_to_temp() : '';
         try {
-            foreach (config::hr_cc_emails() as $email) {
+            foreach ($hremails as $address) {
                 $recipient = \core_user::get_noreply_user();
-                $recipient->email = $email;
+                $recipient->email = $address;
                 $recipient->firstname = 'HR';
                 $recipient->lastname = '';
                 $recipient->mailformat = 1;
@@ -247,10 +336,10 @@ class notifier {
                     $recipient,
                     \core_user::get_noreply_user(),
                     '[Copy] ' . $subject . ' - ' . fullname($user),
-                    $body,
-                    '',
+                    $hrcopy['text'],
+                    $hrcopy['html'],
                     $hrattachment,
-                    $certificate ? $certificate->get_filename() : ''
+                    $attachname
                 );
             }
         } finally {

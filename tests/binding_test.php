@@ -198,7 +198,10 @@ final class binding_test extends \advanced_testcase {
         $messages = $sink->get_messages();
         $this->assertCount(1, $messages);
         $this->assertSame('casey@example.com', $messages[0]->to);
-        $this->assertStringContainsString('/login/forgot_password.php?token=', quoted_printable_decode($messages[0]->body));
+        $body = quoted_printable_decode($messages[0]->body);
+        $this->assertStringContainsString('/login/forgot_password.php?token=', $body);
+        $this->assertStringContainsString('Content-Type: text/html', $body, 'branded HTML part is sent');
+        $this->assertStringContainsString(get_string('email_cta_activation', 'local_caregivertraining'), $body);
         $this->assertTrue($DB->record_exists('user_password_resets', ['userid' => $result['userid']]));
 
         $DB->set_field('user', 'lastlogin', time(), ['id' => $result['userid']]);

@@ -123,8 +123,16 @@ final class completion_test extends \advanced_testcase {
         sort($recipients);
         $this->assertSame(['hr@example.com', $this->learner->user->email], $recipients);
         foreach ($sink->get_messages() as $message) {
-            $this->assertStringContainsString($cycle->certificatecode . '.pdf', $message->body, 'certificate PDF attached');
-            $this->assertStringNotContainsString('downloadown', $message->body, 'emailed links cannot download directly');
+            $body = quoted_printable_decode($message->body);
+            $this->assertStringContainsString('filename=certificate-' . $cycle->certificatecode . '.pdf', $message->body,
+                'certificate PDF attached');
+            $this->assertStringNotContainsString('downloadown', $body, 'emailed links cannot download directly');
+            $this->assertStringContainsString(get_string('email_heading_completion', 'local_caregivertraining'), $body);
+            $this->assertSame(
+                $message->to === 'hr@example.com',
+                str_contains($body, 'HR copy of the email sent to'),
+                'only the HR copy carries the HR banner'
+            );
         }
     }
 

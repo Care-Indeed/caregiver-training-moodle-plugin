@@ -24,17 +24,11 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$string['activation_body'] = 'Hello {$a->firstname},
+$string['activation_heading'] = 'Welcome to your annual caregiver training';
+$string['activation_intro'] = 'Hello {$a->firstname},
 
-An account has been created for you on {$a->sitename} for caregiver annual training.
-
-Username: {$a->username}
-
-Choose your password using this link. For security it expires in {$a->expiry}:
-{$a->link}
-
-If the link has expired, use "Forgotten your username or password?" on the login page:
-{$a->loginurl}';
+An account has been created for you on {$a->sitename} for your annual caregiver training. Set your password to get started.';
+$string['activation_note'] = 'For security, the link expires in {$a->expiry}. If it has expired, use "Forgotten your username or password?" on the login page: {$a->loginurl}';
 $string['activation_subject'] = '{$a}: set up your training account';
 $string['adapterenabled'] = 'Deliver events to the adapter';
 $string['adaptersecret'] = 'Adapter signing secret';
@@ -91,30 +85,19 @@ $string['courseid'] = 'Annual course ID';
 $string['courseid_desc'] = 'Moodle course id of the annual training course.';
 $string['default_body_completion'] = 'Hello {firstname},
 
-Thank you for completing your annual caregiver training.
-
-Certificate code: {certificatecode}
-Certificate: {certificateurl}';
+Thank you for completing your annual caregiver training. Your certificate is ready.';
 $string['default_body_due'] = 'Hello {firstname},
 
-Your annual caregiver training is due today, {duedate}.
-
-Continue here: {courseurl}';
+Your annual caregiver training is due today, {duedate}. Please finish it before the end of the day.';
 $string['default_body_overdue'] = 'Hello {firstname},
 
-Your annual caregiver training was due on {duedate} and is not yet complete. The course remains available until {accessenddate}.
-
-Continue here: {courseurl}';
+Your annual caregiver training was due on {duedate} and is not complete yet. You can still finish it until {accessenddate}, when your access to the course ends.';
 $string['default_body_reminder'] = 'Hello {firstname},
 
-Your annual caregiver training is due on or before {duedate}.
-
-Continue here: {courseurl}';
+This is a friendly reminder that your annual caregiver training is due on or before {duedate}. Please continue where you left off.';
 $string['default_body_windowopen'] = 'Hello {firstname},
 
-Your annual caregiver training is open. Please complete it on or before {duedate}.
-
-Start here: {courseurl}';
+Your annual caregiver training is now open. Please complete it on or before {duedate}.';
 $string['default_subject_completion'] = 'Annual caregiver training completed';
 $string['default_subject_due'] = 'Annual caregiver training is due today';
 $string['default_subject_overdue'] = 'Annual caregiver training is overdue';
@@ -124,6 +107,39 @@ $string['duration_hr'] = '{$a} hr';
 $string['duration_hrs'] = '{$a} hrs';
 $string['duration_min'] = '{$a} min';
 $string['duration_mins'] = '{$a} mins';
+$string['email_certificate_attached'] = 'Your certificate is attached to this email as a PDF.';
+$string['email_cta_activation'] = 'Set your password';
+$string['email_cta_completion'] = 'View certificate';
+$string['email_cta_due'] = 'Finish training';
+$string['email_cta_overdue'] = 'Finish training';
+$string['email_cta_reminder'] = 'Continue training';
+$string['email_cta_windowopen'] = 'Start training';
+$string['email_detail_accessend'] = 'Course open until';
+$string['email_detail_certificatecode'] = 'Certificate code';
+$string['email_detail_completeby'] = 'Complete by';
+$string['email_detail_completedon'] = 'Completed on';
+$string['email_detail_username'] = 'Username';
+$string['email_detail_wasdue'] = 'Was due';
+$string['email_fallback'] = 'Button not working? Copy this link into your browser:';
+$string['email_footer'] = '{$a} · Annual caregiver training. This is an automated message; replies are not monitored.';
+$string['email_heading_completion'] = 'Congratulations on completing your annual training';
+$string['email_heading_due'] = 'Your annual training is due today';
+$string['email_heading_overdue'] = 'Your annual training is overdue';
+$string['email_heading_reminder'] = 'Your annual training is due soon';
+$string['email_heading_windowopen'] = 'Your annual training is open';
+$string['email_hrcopy'] = 'HR copy of the email sent to {$a->name} ({$a->email}).';
+$string['email_label_activation'] = 'Account created';
+$string['email_label_completion'] = 'Completed';
+$string['email_label_due'] = 'Due today';
+$string['email_label_overdue'] = 'Overdue';
+$string['email_label_reminder'] = 'Reminder';
+$string['email_label_windowopen'] = 'Training open';
+$string['email_preheader_activation'] = 'Set your password to get started.';
+$string['email_preheader_completion'] = 'Your certificate is ready.';
+$string['email_preheader_due'] = 'Due today, {$a}.';
+$string['email_preheader_overdue'] = 'It was due on {$a}. You can still finish it.';
+$string['email_preheader_reminder'] = 'Due on or before {$a}.';
+$string['email_preheader_windowopen'] = 'Complete it on or before {$a}.';
 $string['error:alreadycompleted'] = 'The learner already completed the annual training due {$a->anniversarydate} in cycle {$a->cycleid}. A new cycle needs a different anniversary date.';
 $string['error:ambiguousemail'] = 'More than one Moodle account uses this email. Resolve manually before provisioning.';
 $string['error:bindingconflict'] = 'Binding conflict: {$a}';
