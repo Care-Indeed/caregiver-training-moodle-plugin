@@ -25,6 +25,9 @@ repository in its `Dockerfile`. To release a change:
 
 ## Documentation
 
+To set up the plugin, find your way around it, and see what it does, start with the administrator and HR guide,
+[docs/user-guide.md](docs/user-guide.md).
+
 Every endpoint (the adapter REST API at `/local/caregivertraining/api.php/v1/...`, the equivalent web service
 functions, the outbound completion event, admin pages, the CSV export and the CLI script) is documented in
 [docs/api-endpoints.md](docs/api-endpoints.md), including how the API handles common provisioning and cycle
