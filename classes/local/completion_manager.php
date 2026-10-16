@@ -98,8 +98,13 @@ class completion_manager {
             }
             $problems = certificate::render_problems(\core_user::get_user($cycle->userid, '*', MUST_EXIST));
             if ($problems) {
-                exceptions::raise('certificate_render_failed', ['key' => (string) $cycle->id, 'problems' => $problems],
-                    (int) $cycle->userid, null, (int) $cycle->id);
+                exceptions::raise(
+                    'certificate_render_failed',
+                    ['key' => (string) $cycle->id, 'problems' => $problems],
+                    (int) $cycle->userid,
+                    null,
+                    (int) $cycle->id
+                );
                 return false;
             }
 

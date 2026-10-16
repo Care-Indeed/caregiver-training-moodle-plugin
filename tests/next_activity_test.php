@@ -71,7 +71,9 @@ final class next_activity_test extends \advanced_testcase {
 
         $this->assertNull(next_activity::find($course, (int) $user->id, (int) $first->cmid), 'the next one is locked');
         $this->assertFalse(next_activity::is_last($course, (int) $user->id, (int) $first->cmid));
-        $this->assertTrue(next_activity::is_last($course, (int) $user->id, (int) $locked->cmid),
-            'a trailing label without completion does not count');
+        $this->assertTrue(
+            next_activity::is_last($course, (int) $user->id, (int) $locked->cmid),
+            'a trailing label without completion does not count'
+        );
     }
 }

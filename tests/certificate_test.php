@@ -81,8 +81,10 @@ final class certificate_test extends \advanced_testcase {
         $this->gen->create_evidence($this->fixture, (int) $this->learner->user->id);
         $cycle = cycle_manager::get('C-1');
 
-        $this->assertSame(['certificate_page_empty', 'certificate_missing_studentname', 'certificate_missing_code'],
-            certificate::design()['problems']);
+        $this->assertSame(
+            ['certificate_page_empty', 'certificate_missing_studentname', 'certificate_missing_code'],
+            certificate::design()['problems']
+        );
         $this->assertSame(['certificate_template_incomplete'], completion_manager::check_gates($cycle)['reasons']);
         $this->assertFalse(completion_manager::evaluate((int) $cycle->id));
         $cycle = cycle_manager::get('C-1');
@@ -137,8 +139,10 @@ final class certificate_test extends \advanced_testcase {
         $other = $this->getDataGenerator()->create_user(['firstname' => 'Somebody', 'lastname' => 'Else']);
         $pdf = certificate::template()->generate_pdf(true, (int) $other->id, true);
         $this->assertSame([], certificate::content_problems($pdf, $other));
-        $this->assertSame(['certificate_name_not_rendered', 'certificate_code_not_rendered'],
-            certificate::content_problems($pdf, $this->learner->user, 'NOTONTHEPAGE'));
+        $this->assertSame(
+            ['certificate_name_not_rendered', 'certificate_code_not_rendered'],
+            certificate::content_problems($pdf, $this->learner->user, 'NOTONTHEPAGE')
+        );
     }
 
     public function test_fingerprint_follows_layout_and_images_but_not_wording(): void {

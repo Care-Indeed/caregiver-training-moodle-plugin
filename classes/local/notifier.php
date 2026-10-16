@@ -215,7 +215,7 @@ class notifier {
      */
     private static function certificate_url(): string {
         $cmid = config::certificate_cmid();
-        // customcert only serves downloadown to a POST with a sesskey, so an emailed link must open the activity page.
+        // The customcert module only serves downloads to a POST with a sesskey, so an emailed link must open the activity page.
         return $cmid ? (new \moodle_url('/mod/customcert/view.php', ['id' => $cmid]))->out(false) : '';
     }
 
@@ -232,8 +232,16 @@ class notifier {
      * @param string $hrcopy HR copy banner, empty for the learner
      * @return array{html: string, text: string}
      */
-    private static function compose(\stdClass $cycle, \stdClass $user, string $type, string $subject, string $body,
-            ?\stored_file $attachment, ?array $published, string $hrcopy = ''): array {
+    private static function compose(
+        \stdClass $cycle,
+        \stdClass $user,
+        string $type,
+        string $subject,
+        string $body,
+        ?\stored_file $attachment,
+        ?array $published,
+        string $hrcopy = ''
+    ): array {
         $component = config::COMPONENT;
         $duedate = self::format_date($cycle->anniversarydate);
         $cta = ['url' => self::course_url($cycle), 'label' => get_string("email_cta_{$type}", $component)];
@@ -250,10 +258,8 @@ class notifier {
                 }
                 $cta['url'] = $published['pdf'] ?? (self::certificate_url() ?: $cta['url']);
                 if ($attachment) {
-                    $note = get_string(
-                        $attachment->get_mimetype() === 'image/png' ? 'email_certificate_attached_image' : 'email_certificate_attached',
-                        $component
-                    );
+                    $isimage = $attachment->get_mimetype() === 'image/png';
+                    $note = get_string($isimage ? 'email_certificate_attached_image' : 'email_certificate_attached', $component);
                 }
                 if (!empty($published['png'])) {
                     $image = ['url' => $published['png'], 'alt' => get_string('email_certificate_imagealt', $component)];
@@ -306,8 +312,13 @@ class notifier {
             try {
                 $published = certificate::publish($cycle);
             } catch (\Throwable $e) {
-                exceptions::raise('certificate_publish_failed', ['key' => (string) $cycle->id, 'error' => $e->getMessage()],
-                    (int) $cycle->userid, null, (int) $cycle->id);
+                exceptions::raise(
+                    'certificate_publish_failed',
+                    ['key' => (string) $cycle->id, 'error' => $e->getMessage()],
+                    (int) $cycle->userid,
+                    null,
+                    (int) $cycle->id
+                );
             }
             $certificate = certificate::png_file($cycle) ?? certificate::pdf_file($cycle);
         }
@@ -342,8 +353,16 @@ class notifier {
         if (!$hremails) {
             return true;
         }
-        $hrcopy = self::compose($cycle, $user, $type, $subject, $body, $certificate, $published,
-            get_string('email_hrcopy', config::COMPONENT, ['name' => fullname($user), 'email' => $user->email]));
+        $hrcopy = self::compose(
+            $cycle,
+            $user,
+            $type,
+            $subject,
+            $body,
+            $certificate,
+            $published,
+            get_string('email_hrcopy', config::COMPONENT, ['name' => fullname($user), 'email' => $user->email])
+        );
         $hrattachment = $certificate ? $certificate->copy_content_to_temp() : '';
         try {
             foreach ($hremails as $address) {

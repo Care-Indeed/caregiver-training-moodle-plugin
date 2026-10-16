@@ -111,8 +111,11 @@ final class completion_test extends \advanced_testcase {
                 ["certificates/{$code}.png", 'image/png']]);
             $this->assertGreaterThan(0, $size);
         }
-        $this->assertEqualsCanonicalizing(["certificates/{$code}.pdf", "certificates/{$code}.png"],
-            array_unique(array_column($uploads, 2)), 'both files are uploaded on completion');
+        $this->assertEqualsCanonicalizing(
+            ["certificates/{$code}.pdf", "certificates/{$code}.png"],
+            array_unique(array_column($uploads, 2)),
+            'both files are uploaded on completion'
+        );
 
         foreach ($sink->get_messages() as $message) {
             $body = quoted_printable_decode($message->body);
@@ -139,8 +142,11 @@ final class completion_test extends \advanced_testcase {
         foreach ($sink->get_messages() as $message) {
             $body = quoted_printable_decode($message->body);
             $this->assertStringContainsString('/mod/customcert/view.php', $body);
-            $this->assertStringContainsString('filename=certificate-' . $cycle->certificatecode . '.png', $message->body,
-                'still attached');
+            $this->assertStringContainsString(
+                'filename=certificate-' . $cycle->certificatecode . '.png',
+                $message->body,
+                'still attached'
+            );
         }
     }
 
@@ -216,8 +222,11 @@ final class completion_test extends \advanced_testcase {
         $this->assertSame(['hr@example.com', $this->learner->user->email], $recipients);
         foreach ($sink->get_messages() as $message) {
             $body = quoted_printable_decode($message->body);
-            $this->assertStringContainsString('filename=certificate-' . $cycle->certificatecode . '.png', $message->body,
-                'certificate PNG attached');
+            $this->assertStringContainsString(
+                'filename=certificate-' . $cycle->certificatecode . '.png',
+                $message->body,
+                'certificate PNG attached'
+            );
             $this->assertStringContainsString('Content-Type: image/png', $message->body);
             $this->assertStringNotContainsString('downloadown', $body, 'emailed links cannot download directly');
             $this->assertStringContainsString(get_string('email_heading_completion', 'local_caregivertraining'), $body);

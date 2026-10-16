@@ -44,11 +44,16 @@ final class email_test extends \advanced_testcase {
 
         $this->assertStringContainsString('Hello &lt;b&gt;Sam&lt;/b&gt;,', $result['html']);
         $this->assertStringNotContainsString('<b>Sam</b>', $result['html']);
-        $this->assertStringContainsString('<a href="https://example.com/course/view.php?id=2&amp;x=1"', $result['html'],
-            'URL is linked without the trailing full stop');
+        $this->assertStringContainsString(
+            '<a href="https://example.com/course/view.php?id=2&amp;x=1"',
+            $result['html'],
+            'URL is linked without the trailing full stop'
+        );
         $this->assertStringContainsString('November 12, 2026', $result['html']);
-        $this->assertStringContainsString("Complete by: November 12, 2026\n\nStart training: https://example.com/course/view.php?id=2",
-            $result['text']);
+        $this->assertStringContainsString(
+            "Complete by: November 12, 2026\n\nStart training: https://example.com/course/view.php?id=2",
+            $result['text']
+        );
         $this->assertStringStartsWith("Hello <b>Sam</b>,\n\n", $result['text'], 'plain text keeps the body as written');
         $this->assertStringNotContainsString('<a ', $result['text'], 'no layout markup in the plain-text part');
     }
