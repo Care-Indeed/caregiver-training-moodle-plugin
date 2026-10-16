@@ -89,6 +89,15 @@ class profile_fields {
                 'param4' => '',
                 'param5' => '',
             ];
+            if ($definition['datatype'] === 'datetime') {
+                // The datetime field's form handler reads these alongside param1 and param2.
+                $data->startyear = $data->param1;
+                $data->startmonth = 1;
+                $data->startday = 1;
+                $data->endyear = $data->param2;
+                $data->endmonth = 1;
+                $data->endday = 1;
+            }
             profile_save_field($data, []);
         }
     }
