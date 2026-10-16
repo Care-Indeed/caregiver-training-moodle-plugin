@@ -1,7 +1,7 @@
 # Manual QA test guide: `local_caregivertraining`
 
 This guide checks the caregiver annual training plugin against the agreed requirements. Every route, field, status
-code and message below comes from the plugin code (version `2026100802`, release `0.2.0`), and the error bodies were
+code and message below comes from the plugin code (version `2026101704`, release `0.2.1`), and the error bodies were
 captured from the local Docker site. Where the implementation differs from the requirement, the test case is marked
 **⚠️** with an explanation.
 
@@ -40,7 +40,7 @@ pnpm run local:seed               # synthetic course, 3 learners, adapter user a
 - Use `local:up:plugin-dev`, not `local:up`. Plain `local:up` installs the plugin version pinned in the Dockerfile,
   which may be older than the code under test.
 - After starting, open `http://localhost:8080/admin/index.php` once as admin to finish any plugin upgrade.
-- Confirm the version: **Site administration → Plugins → Plugins overview**, search "Caregiver" → `2026100802`.
+- Confirm the version: **Site administration → Plugins → Plugins overview**, search "Caregiver" → `2026101704`.
 - Mail is captured by Mailpit at `http://localhost:8025`. Nothing leaves your machine.
 
 | Container | Purpose |
