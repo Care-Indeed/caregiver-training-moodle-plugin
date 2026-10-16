@@ -62,6 +62,7 @@ class local_caregivertraining_generator extends component_generator_base {
             'rangeto' => 5]);
 
         $customcert = $dg->create_module('customcert', ['course' => $course->id] + $manual);
+        $this->add_certificate_elements((int) $customcert->templateid, ['studentname', 'code']);
 
         set_config('courseid', $course->id, 'local_caregivertraining');
         set_config('certificatecmid', $customcert->cmid, 'local_caregivertraining');
@@ -76,6 +77,28 @@ class local_caregivertraining_generator extends component_generator_base {
             'customcert' => $customcert,
             'cms' => [$lesson->cmid, $quiz->cmid, $feedback->cmid, $customcert->cmid],
         ];
+    }
+
+    /**
+     * Add elements to the first page of a certificate template.
+     *
+     * @param int $templateid
+     * @param string[] $elements element types, e.g. studentname, code
+     */
+    public function add_certificate_elements(int $templateid, array $elements): void {
+        global $DB;
+        $pages = $DB->get_records('customcert_pages', ['templateid' => $templateid], 'sequence', 'id', 0, 1);
+        $pageid = (int) reset($pages)->id;
+        $sequence = (int) $DB->get_field('customcert_elements', 'MAX(sequence)', ['pageid' => $pageid]);
+        $now = time();
+        foreach ($elements as $element) {
+            $sequence++;
+            $DB->insert_record('customcert_elements', (object) [
+                'pageid' => $pageid, 'name' => $element, 'element' => $element, 'data' => null, 'font' => 'freesans',
+                'fontsize' => 14, 'colour' => '#000000', 'posx' => 20, 'posy' => 20 * $sequence, 'width' => 0, 'refpoint' => 0,
+                'alignment' => 'L', 'sequence' => $sequence, 'timecreated' => $now, 'timemodified' => $now,
+            ]);
+        }
     }
 
     /**

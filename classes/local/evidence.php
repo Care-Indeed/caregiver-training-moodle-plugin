@@ -210,6 +210,10 @@ class evidence {
             if (!is_string($pdf) || $pdf === '') {
                 throw new \moodle_exception('snapshotfailed', config::COMPONENT, '', 'certificate PDF generation failed');
             }
+            if ($problems = certificate::content_problems($pdf, \core_user::get_user($userid, '*', MUST_EXIST), $issue['code'])) {
+                throw new \moodle_exception('snapshotfailed', config::COMPONENT, '',
+                    "certificate {$issue['code']} is incomplete: " . implode(', ', $problems));
+            }
             $filename = clean_param($issue['code'], PARAM_ALPHANUMEXT) . '.pdf';
             $pdfs[$filename] = $pdf;
             $certificates[] = ['issueid' => (int) $issue['id'], 'code' => $issue['code'],

@@ -63,6 +63,18 @@ if ($hassiteconfig) {
         0,
         PARAM_INT
     ));
+    $design = $ADMIN->fulltree ? \local_caregivertraining\local\certificate::design() : null;
+    $settings->add(new admin_setting_configtext(
+        "{$component}/certificatefingerprint",
+        get_string('certificatefingerprint', $component),
+        get_string('certificatefingerprint_desc', $component, [
+            'name' => $design['name'] ?? '',
+            'fingerprint' => $design['fingerprint'] ?? '',
+            'problems' => $design && $design['problems'] ? implode(', ', $design['problems']) : '-',
+        ]),
+        '',
+        PARAM_ALPHANUM
+    ));
     $settings->add(new admin_setting_configtext(
         "{$component}/compliancetimezone",
         get_string('compliancetimezone', $component),

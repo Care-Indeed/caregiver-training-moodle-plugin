@@ -68,7 +68,8 @@ Plugin settings (**Site administration → Plugins → Local plugins → Caregiv
 | --- | --- | --- |
 | Annual course ID | `courseid` | Course id of the annual course (seed sets this) |
 | Learner role | `roleid` | `0` = the default student role |
-| Custom certificate course module ID | `certificatecmid` | cmid of the Custom certificate in that course. **Required**, or every cycle has the gate `certificate_not_configured`. |
+| Custom certificate course module ID | `certificatecmid` | cmid of the Custom certificate in that course. **Required**, or every cycle has the gate `certificate_not_configured`. Its design must have the learner name and certificate code, no empty pages and no missing images, or cycles wait with `certificate_template_incomplete`. Check it with `cli/apply_certificate_design.php`. |
+| Required certificate design | `certificatefingerprint` | Optional. Pins the approved design; the Care Indeed design is `d8208a3d418370fa103b6757442d0dc243d8f0c1975f0aa9fca5216c2cc2e8cf`. Any other design waits with `certificate_template_incomplete`. |
 | Time policy | `timepolicy` | `tracked` (default `unresolved` blocks completion) |
 | Required seconds | `requiredseconds` | `18000` for the 5-hour tests; `600` for quick UI runs |
 | Count every activity in the annual course | `countallactivities` | ticked (otherwise list cmids in `countablecmids`) |
@@ -205,7 +206,8 @@ curl -s -X POST "$API/v1/cycles/<CYCLE_ID>/repair" -H "Authorization: Bearer $AP
 ```
 
 The response lists unmet requirements in `gates`. Gate codes: `cycle_not_open`, `course_not_complete`,
-`completion_predates_cycle`, `time_policy_unresolved`, `time_requirement_not_met`, `certificate_not_configured`.
+`completion_predates_cycle`, `time_policy_unresolved`, `time_requirement_not_met`, `certificate_not_configured`,
+`certificate_template_incomplete`.
 
 Useful queries:
 

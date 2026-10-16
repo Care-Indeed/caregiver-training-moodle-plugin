@@ -706,6 +706,7 @@ components:
                   - time_policy_unresolved
                   - time_requirement_not_met
                   - certificate_not_configured
+                  - certificate_template_incomplete
     CycleList:
       type: object
       required: [count, items, servertime]
@@ -800,6 +801,33 @@ components:
           enum: [unresolved, tracked, nominal]
         adapterdelivery:
           type: boolean
+        certificate:
+          type: object
+          description: Configured certificate design
+          properties:
+            templateid:
+              type: integer
+            name:
+              type: string
+            pages:
+              type: integer
+            elements:
+              type: integer
+            fingerprint:
+              type: string
+              description: Equal wherever the layout, fonts, colours and images are the same (wording excluded)
+            problems:
+              type: array
+              items:
+                type: string
+                enum:
+                  - certificate_not_configured
+                  - certificate_template_empty
+                  - certificate_page_empty
+                  - certificate_image_missing
+                  - certificate_missing_studentname
+                  - certificate_missing_code
+                  - certificate_design_not_approved
         cycles:
           type: object
           properties:
@@ -829,6 +857,7 @@ components:
             enum:
               - course_not_configured
               - certificate_not_configured
+              - certificate_template_incomplete
               - certificate_verification_not_public
               - time_policy_unresolved
               - adapter_delivery_misconfigured

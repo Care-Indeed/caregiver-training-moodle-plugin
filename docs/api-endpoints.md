@@ -601,7 +601,10 @@ Response:
 | `servertime` | Server time. Send it as the next `modifiedsince`. |
 
 Completion gate codes: `cycle_not_open`, `course_not_complete`, `completion_predates_cycle`,
-`time_policy_unresolved`, `time_requirement_not_met`, `certificate_not_configured`.
+`time_policy_unresolved`, `time_requirement_not_met`, `certificate_not_configured`, `certificate_template_incomplete`.
+`certificate_template_incomplete` means the certificate design has no pages, an empty page, a missing background
+image, or no learner name or certificate code, or (when `certificatefingerprint` is set) differs from the approved
+design. The cycle completes once the design is fixed.
 
 ### `local_caregivertraining_v1_health`
 
@@ -614,11 +617,12 @@ No parameters. Returns configuration and queue health without personal data.
 | `moodlerelease` | Moodle release string. |
 | `timepolicy` | `unresolved`, `tracked` or `nominal`. |
 | `adapterdelivery` | Whether outbound delivery is enabled. |
+| `certificate` | Configured certificate design: `templateid`, `name`, `pages`, `elements`, `fingerprint` and `problems`. The fingerprint covers layout, fonts, colours and image content but not wording, so it is the same in production and in a sanitized local copy of the same design. `problems` uses the codes `certificate_not_configured`, `certificate_template_empty`, `certificate_page_empty`, `certificate_image_missing`, `certificate_missing_studentname`, `certificate_missing_code` and `certificate_design_not_approved` (the fingerprint differs from the `certificatefingerprint` setting or `CAREGIVERTRAINING_CERTIFICATE_FINGERPRINT`). |
 | `cycles` | Counts by status: `scheduled`, `open`, `blocked`, `completed`. |
 | `outbox` | Event counts: `pending`, `failed`. |
 | `openexceptions` | Exceptions awaiting review. |
 | `processcycleslastrun` | Last run of the cycle-processing task. |
-| `problems` | `course_not_configured`, `certificate_not_configured`, `certificate_verification_not_public` (the certificate doesn't let anyone verify, so `verifyurl` would ask for a login), `time_policy_unresolved`, `adapter_delivery_misconfigured`, `process_cycles_stale`. |
+| `problems` | `course_not_configured`, `certificate_not_configured`, `certificate_template_incomplete`, `certificate_verification_not_public` (the certificate doesn't let anyone verify, so `verifyurl` would ask for a login), `time_policy_unresolved`, `adapter_delivery_misconfigured`, `process_cycles_stale`. |
 | `servertime` | Server time. |
 
 ### `local_caregivertraining_v1_record_heartbeat` (browser only)

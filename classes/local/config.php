@@ -86,6 +86,15 @@ class config {
     }
 
     /**
+     * Fingerprint the certificate design must have, or an empty string when any complete design is accepted.
+     *
+     * @return string
+     */
+    public static function certificate_fingerprint(): string {
+        return strtolower(self::env_or_setting('CAREGIVERTRAINING_CERTIFICATE_FINGERPRINT', 'certificatefingerprint'));
+    }
+
+    /**
      * Compliance timezone.
      *
      * @return \DateTimeZone
@@ -252,8 +261,8 @@ class config {
      * @return bool
      */
     public static function adapter_enabled(): bool {
-        $env = getenv('CAREGIVERTRAINING_ADAPTER_ENABLED');
-        if ($env !== false && $env !== '') {
+        $env = self::env('CAREGIVERTRAINING_ADAPTER_ENABLED');
+        if ($env !== '') {
             return $env === '1';
         }
         return (bool) self::get('adapterenabled', 0);
@@ -265,8 +274,8 @@ class config {
      * @return string
      */
     public static function adapter_url(): string {
-        $env = getenv('CAREGIVERTRAINING_ADAPTER_URL');
-        return ($env !== false && $env !== '') ? $env : (string) self::get('adapterurl', '');
+        $env = self::env('CAREGIVERTRAINING_ADAPTER_URL');
+        return $env !== '' ? $env : (string) self::get('adapterurl', '');
     }
 
     /**
@@ -292,9 +301,44 @@ class config {
      * @return string
      */
     public static function adapter_secret(): string {
-        $env = getenv('CAREGIVERTRAINING_ADAPTER_SECRET');
-        return ($env !== false && $env !== '') ? $env : (string) self::get('adaptersecret', '');
+        $env = self::env('CAREGIVERTRAINING_ADAPTER_SECRET');
+        return $env !== '' ? $env : (string) self::get('adaptersecret', '');
     }
+
+    /**
+     * An environment variable, or an empty string when it is unset.
+     *
+     * @param string $name
+     * @return string
+     */
+    private static function env(string $name): string {
+        $value = getenv($name);
+        return $value === false ? '' : $value;
+    }
+
+    /**
+     * A setting that an environment variable overrides when set and non-empty.
+     *
+     * @param string $env environment variable name
+     * @param string $name plugin setting name
+     * @param string $default
+     * @return string
+     */
+    private static function env_or_setting(string $env, string $name, string $default = ''): string {
+        $value = self::env($env);
+        if ($value !== '') {
+            return $value;
+        }
+        $value = trim((string) self::get($name, ''));
+        return $value !== '' ? $value : $default;
+    }
+
+
+
+
+
+
+
 
     /**
      * Maximum outbox delivery attempts.

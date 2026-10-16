@@ -60,6 +60,8 @@ class completion_manager {
         $cm = $cmid ? get_coursemodule_from_id('customcert', $cmid) : false;
         if (!$cm || (int) $cm->course !== (int) $cycle->courseid) {
             $reasons[] = 'certificate_not_configured';
+        } else if (certificate::design()['problems']) {
+            $reasons[] = 'certificate_template_incomplete';
         }
         return ['passed' => empty($reasons), 'reasons' => $reasons, 'timecompleted' => $timecompleted,
             'approvedseconds' => $approved];
@@ -85,6 +87,19 @@ class completion_manager {
             }
             $gates = self::check_gates($cycle);
             if (!$gates['passed']) {
+                if (in_array('certificate_template_incomplete', $gates['reasons'], true)) {
+                    // One open exception for the template, however many learners are waiting on it.
+                    exceptions::raise('certificate_template_incomplete', [
+                        'key' => (string) config::certificate_cmid(),
+                        'problems' => certificate::design()['problems'],
+                    ]);
+                }
+                return false;
+            }
+            $problems = certificate::render_problems(\core_user::get_user($cycle->userid, '*', MUST_EXIST));
+            if ($problems) {
+                exceptions::raise('certificate_render_failed', ['key' => (string) $cycle->id, 'problems' => $problems],
+                    (int) $cycle->userid, null, (int) $cycle->id);
                 return false;
             }
 

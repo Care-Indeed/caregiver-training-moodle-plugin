@@ -20,6 +20,7 @@ use core_external\external_function_parameters;
 use core_external\external_multiple_structure;
 use core_external\external_single_structure;
 use core_external\external_value;
+use local_caregivertraining\local\certificate;
 use local_caregivertraining\local\config;
 
 /**
@@ -55,11 +56,17 @@ class v1_health extends adapter_api {
         }
         $cmid = config::certificate_cmid();
         $cm = $cmid ? get_coursemodule_from_id('customcert', $cmid) : false;
+        $design = certificate::design();
         if (!$cm || (int) $cm->course !== $courseid) {
             $problems[] = 'certificate_not_configured';
-        } else if (!$DB->get_field('customcert', 'verifyany', ['id' => $cm->instance])) {
-            // The verifyurl in completion events would ask employers to log in.
-            $problems[] = 'certificate_verification_not_public';
+        } else {
+            if ($design['problems']) {
+                $problems[] = 'certificate_template_incomplete';
+            }
+            if (!$DB->get_field('customcert', 'verifyany', ['id' => $cm->instance])) {
+                // The verifyurl in completion events would ask employers to log in.
+                $problems[] = 'certificate_verification_not_public';
+            }
         }
         if (config::time_policy() === config::POLICY_UNRESOLVED) {
             $problems[] = 'time_policy_unresolved';
@@ -84,6 +91,7 @@ class v1_health extends adapter_api {
             'moodlerelease' => $GLOBALS['CFG']->release,
             'timepolicy' => config::time_policy(),
             'adapterdelivery' => config::adapter_enabled(),
+            'certificate' => $design,
             'cycles' => [
                 'scheduled' => $count('local_cgt_cycle', "status = 'scheduled'"),
                 'open' => $count('local_cgt_cycle', "status = 'open'"),
@@ -113,6 +121,14 @@ class v1_health extends adapter_api {
             'moodlerelease' => new external_value(PARAM_RAW, 'Moodle release'),
             'timepolicy' => new external_value(PARAM_ALPHA, 'Active time policy'),
             'adapterdelivery' => new external_value(PARAM_BOOL, 'Outbound delivery enabled'),
+            'certificate' => new external_single_structure([
+                'templateid' => new external_value(PARAM_INT, 'Template of the configured certificate, 0 if none'),
+                'name' => new external_value(PARAM_TEXT, 'Template name'),
+                'pages' => new external_value(PARAM_INT, 'Pages'),
+                'elements' => new external_value(PARAM_INT, 'Elements on all pages'),
+                'fingerprint' => new external_value(PARAM_ALPHANUM, 'Design fingerprint, equal wherever the design is the same'),
+                'problems' => new external_multiple_structure(new external_value(PARAM_ALPHANUMEXT, 'Why it cannot be issued')),
+            ]),
             'cycles' => new external_single_structure([
                 'scheduled' => new external_value(PARAM_INT, 'Scheduled'),
                 'open' => new external_value(PARAM_INT, 'Open'),
