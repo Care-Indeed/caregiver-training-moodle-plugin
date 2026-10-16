@@ -195,6 +195,27 @@ if ($hassiteconfig) {
     }
 
     $settings->add(new admin_setting_heading(
+        "{$component}/storage",
+        get_string('settings_storage', $component),
+        get_string('settings_storage_desc', $component)
+    ));
+    foreach (['s3bucket', 's3region', 's3endpoint', 's3publicurl', 's3prefix', 's3accesskey'] as $name) {
+        $settings->add(new admin_setting_configtext(
+            "{$component}/{$name}",
+            get_string($name, $component),
+            get_string("{$name}_desc", $component),
+            '',
+            PARAM_RAW_TRIMMED
+        ));
+    }
+    $settings->add(new admin_setting_configpasswordunmask(
+        "{$component}/s3secretkey",
+        get_string('s3secretkey', $component),
+        get_string('s3secretkey_desc', $component),
+        ''
+    ));
+
+    $settings->add(new admin_setting_heading(
         "{$component}/adapter",
         get_string('settings_adapter', $component),
         get_string('settings_adapter_desc', $component)

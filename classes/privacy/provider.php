@@ -83,6 +83,9 @@ class provider implements
             'completedat' => 'privacy:metadata:adapter:completedat',
             'certificatecode' => 'privacy:metadata:adapter:certificatecode',
         ], 'privacy:metadata:adapter');
+        $collection->add_external_location_link('s3', [
+            'certificate' => 'privacy:metadata:s3:certificate',
+        ], 'privacy:metadata:s3');
         $collection->add_subsystem_link('core_files', [], 'privacy:metadata:local_cgt_snapshot');
         return $collection;
     }
@@ -244,6 +247,8 @@ class provider implements
             if ($retained) {
                 continue;
             }
+            // Throws when S3 is unreachable, so the request fails and is retried rather than leaving a public copy behind.
+            \local_caregivertraining\local\certificate::unpublish($cycle);
             foreach ($snapshots as $snapshot) {
                 $fs->delete_area_files($systemcontext->id, 'local_caregivertraining', 'snapshotcert', $snapshot->id);
             }

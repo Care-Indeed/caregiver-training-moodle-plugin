@@ -333,12 +333,70 @@ class config {
         return $value !== '' ? $value : $default;
     }
 
+    /**
+     * S3 bucket for published certificates. Empty means certificates are not published.
+     *
+     * @return string
+     */
+    public static function s3_bucket(): string {
+        return self::env_or_setting('CAREGIVERTRAINING_S3_BUCKET', 's3bucket');
+    }
 
+    /**
+     * S3 region.
+     *
+     * @return string
+     */
+    public static function s3_region(): string {
+        return self::env_or_setting('CAREGIVERTRAINING_S3_REGION', 's3region', 'us-west-1');
+    }
 
+    /**
+     * Custom S3 endpoint for S3-compatible storage such as MinIO. Empty means AWS.
+     *
+     * @return string
+     */
+    public static function s3_endpoint(): string {
+        return self::env_or_setting('CAREGIVERTRAINING_S3_ENDPOINT', 's3endpoint');
+    }
 
+    /**
+     * Public base URL that published certificate keys are appended to. Defaults to the bucket's AWS address.
+     *
+     * @return string
+     */
+    public static function s3_public_url(): string {
+        $default = self::s3_bucket() === '' ? '' : 'https://' . self::s3_bucket() . '.s3.' . self::s3_region() . '.amazonaws.com';
+        return rtrim(self::env_or_setting('CAREGIVERTRAINING_S3_PUBLIC_URL', 's3publicurl', $default), '/');
+    }
 
+    /**
+     * Key prefix for published certificates. Only this prefix should be publicly readable.
+     *
+     * @return string
+     */
+    public static function s3_prefix(): string {
+        $prefix = trim(self::env_or_setting('CAREGIVERTRAINING_S3_PREFIX', 's3prefix', 'certificates/'), '/');
+        return $prefix === '' ? '' : $prefix . '/';
+    }
 
+    /**
+     * S3 access key. Empty means the AWS default credential chain (for example the ECS task role).
+     *
+     * @return string
+     */
+    public static function s3_access_key(): string {
+        return self::env_or_setting('CAREGIVERTRAINING_S3_ACCESS_KEY', 's3accesskey');
+    }
 
+    /**
+     * S3 secret key. Never log this value.
+     *
+     * @return string
+     */
+    public static function s3_secret_key(): string {
+        return self::env_or_setting('CAREGIVERTRAINING_S3_SECRET_KEY', 's3secretkey');
+    }
 
     /**
      * Maximum outbox delivery attempts.

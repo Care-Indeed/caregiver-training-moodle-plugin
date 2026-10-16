@@ -16,6 +16,7 @@
 
 namespace local_caregivertraining;
 
+use local_caregivertraining\local\certificate;
 use local_caregivertraining\local\completion_manager;
 use local_caregivertraining\local\config;
 use local_caregivertraining\local\cycle_manager;
@@ -30,6 +31,7 @@ use local_caregivertraining\local\notifier;
  */
 #[\PHPUnit\Framework\Attributes\CoversClass(completion_manager::class)]
 #[\PHPUnit\Framework\Attributes\CoversClass(notifier::class)]
+#[\PHPUnit\Framework\Attributes\CoversClass(certificate::class)]
 final class completion_test extends \advanced_testcase {
     /** @var \stdClass */
     private $fixture;
@@ -37,9 +39,17 @@ final class completion_test extends \advanced_testcase {
     private $learner;
     /** @var \local_caregivertraining_generator */
     private $gen;
+    /** @var array<string, string|false> S3 environment variables to restore */
+    private $s3env = [];
 
     protected function setUp(): void {
         parent::setUp();
+        // The local stack points these at MinIO; tests configure storage through settings.
+        foreach (['BUCKET', 'REGION', 'ENDPOINT', 'PUBLIC_URL', 'PREFIX', 'ACCESS_KEY', 'SECRET_KEY'] as $name) {
+            $this->s3env[$name] = getenv("CAREGIVERTRAINING_S3_{$name}");
+            putenv("CAREGIVERTRAINING_S3_{$name}");
+        }
+        certificate::$handler = null;
         $this->resetAfterTest();
         $this->setAdminUser();
         $this->gen = $this->getDataGenerator()->get_plugin_generator('local_caregivertraining');
@@ -50,6 +60,88 @@ final class completion_test extends \advanced_testcase {
             'alayacareid' => $this->learner->alayacareid, 'anniversarydate' => $anniversary]);
         set_config('nominaldurations', json_encode(array_fill_keys($this->fixture->cms, 4500)), 'local_caregivertraining');
         set_config('hrccemails', 'hr@example.com', 'local_caregivertraining');
+    }
+
+    protected function tearDown(): void {
+        certificate::$handler = null;
+        foreach ($this->s3env as $name => $value) {
+            if ($value !== false) {
+                putenv("CAREGIVERTRAINING_S3_{$name}={$value}");
+            }
+        }
+        parent::tearDown();
+    }
+
+    /**
+     * Complete the learner's cycle and send the queued completion email.
+     *
+     * @return array{0: \stdClass, 1: \phpunit_mailer_sink} the completed cycle and the captured emails
+     */
+    private function complete_and_email(): array {
+        set_config('timepolicy', config::POLICY_NOMINAL, 'local_caregivertraining');
+        $this->gen->create_evidence($this->fixture, (int) $this->learner->user->id);
+        $this->assertTrue(completion_manager::evaluate((int) cycle_manager::get('C-1')->id));
+        completion_manager::record_side_effects(cycle_manager::get('C-1'));
+        $this->preventResetByRollback();
+        $sink = $this->redirectEmails();
+        $this->assertSame(1, notifier::send_queued());
+        return [cycle_manager::get('C-1'), $sink];
+    }
+
+    public function test_completion_publishes_certificate_to_s3_and_links_it(): void {
+        set_config('s3bucket', 'cgt-test', 'local_caregivertraining');
+        set_config('s3publicurl', 'https://certs.example.com/', 'local_caregivertraining');
+        set_config('s3accesskey', 'test-key-not-real', 'local_caregivertraining');
+        set_config('s3secretkey', 'test-secret-not-real', 'local_caregivertraining');
+        $uploads = [];
+        certificate::$handler = function (\Aws\CommandInterface $command) use (&$uploads) {
+            $uploads[] = [$command->getName(), $command['Bucket'], $command['Key'], $command['ContentType'],
+                strlen((string) $command['Body'])];
+            return \GuzzleHttp\Promise\Create::promiseFor(new \Aws\Result([]));
+        };
+
+        [$cycle, $sink] = $this->complete_and_email();
+
+        $code = $cycle->certificatecode;
+        $this->assertNotEmpty($uploads);
+        foreach ($uploads as [$name, $bucket, $key, $type, $size]) {
+            $this->assertSame('PutObject', $name);
+            $this->assertSame('cgt-test', $bucket);
+            $this->assertContains([$key, $type], [["certificates/{$code}.pdf", 'application/pdf'],
+                ["certificates/{$code}.png", 'image/png']]);
+            $this->assertGreaterThan(0, $size);
+        }
+        $this->assertEqualsCanonicalizing(["certificates/{$code}.pdf", "certificates/{$code}.png"],
+            array_unique(array_column($uploads, 2)), 'both files are uploaded on completion');
+
+        foreach ($sink->get_messages() as $message) {
+            $body = quoted_printable_decode($message->body);
+            $this->assertStringContainsString("https://certs.example.com/certificates/{$code}.pdf", $body, 'public PDF link');
+            $this->assertStringContainsString("https://certs.example.com/certificates/{$code}.png", $body, 'inline preview');
+            $this->assertStringNotContainsString('/mod/customcert/view.php', $body);
+        }
+    }
+
+    public function test_failed_upload_falls_back_to_the_certificate_activity(): void {
+        global $DB;
+        set_config('s3bucket', 'cgt-test', 'local_caregivertraining');
+        set_config('s3accesskey', 'test-key-not-real', 'local_caregivertraining');
+        set_config('s3secretkey', 'test-secret-not-real', 'local_caregivertraining');
+        certificate::$handler = fn(\Aws\CommandInterface $command) => \GuzzleHttp\Promise\Create::rejectionFor(
+            new \Aws\S3\Exception\S3Exception('Access Denied', $command)
+        );
+
+        [$cycle, $sink] = $this->complete_and_email();
+
+        $this->assertSame('completed', $cycle->status, 'storage problems never undo a completion');
+        $this->assertTrue($DB->record_exists('local_cgt_exception', ['cycleid' => $cycle->id,
+            'type' => 'certificate_publish_failed']));
+        foreach ($sink->get_messages() as $message) {
+            $body = quoted_printable_decode($message->body);
+            $this->assertStringContainsString('/mod/customcert/view.php', $body);
+            $this->assertStringContainsString('filename=certificate-' . $cycle->certificatecode . '.png', $message->body,
+                'still attached');
+        }
     }
 
     public function test_unresolved_time_policy_blocks_completion(): void {
@@ -124,8 +216,9 @@ final class completion_test extends \advanced_testcase {
         $this->assertSame(['hr@example.com', $this->learner->user->email], $recipients);
         foreach ($sink->get_messages() as $message) {
             $body = quoted_printable_decode($message->body);
-            $this->assertStringContainsString('filename=certificate-' . $cycle->certificatecode . '.pdf', $message->body,
-                'certificate PDF attached');
+            $this->assertStringContainsString('filename=certificate-' . $cycle->certificatecode . '.png', $message->body,
+                'certificate PNG attached');
+            $this->assertStringContainsString('Content-Type: image/png', $message->body);
             $this->assertStringNotContainsString('downloadown', $body, 'emailed links cannot download directly');
             $this->assertStringContainsString(get_string('email_heading_completion', 'local_caregivertraining'), $body);
             $this->assertSame(

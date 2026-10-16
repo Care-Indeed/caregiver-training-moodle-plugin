@@ -170,9 +170,10 @@ class notifier {
      * @param \stdClass $cycle
      * @param \stdClass $user
      * @param string $text
+     * @param array|null $published public certificate URLs from {@see certificate::publish()}
      * @return string
      */
-    public static function render(\stdClass $cycle, \stdClass $user, string $text): string {
+    public static function render(\stdClass $cycle, \stdClass $user, string $text, ?array $published = null): string {
         $replacements = [
             '{firstname}' => $user->firstname,
             '{lastname}' => $user->lastname,
@@ -182,7 +183,7 @@ class notifier {
             '{courseurl}' => self::course_url($cycle),
             '{cycleid}' => $cycle->cycleid,
             '{certificatecode}' => (string) $cycle->certificatecode,
-            '{certificateurl}' => self::certificate_url(),
+            '{certificateurl}' => $published['pdf'] ?? self::certificate_url(),
         ];
         return strtr($text, $replacements);
     }
@@ -227,15 +228,17 @@ class notifier {
      * @param string $subject rendered subject
      * @param string $body rendered body
      * @param \stored_file|null $attachment attached certificate file
+     * @param array|null $published public certificate URLs
      * @param string $hrcopy HR copy banner, empty for the learner
      * @return array{html: string, text: string}
      */
     private static function compose(\stdClass $cycle, \stdClass $user, string $type, string $subject, string $body,
-            ?\stored_file $attachment, string $hrcopy = ''): array {
+            ?\stored_file $attachment, ?array $published, string $hrcopy = ''): array {
         $component = config::COMPONENT;
         $duedate = self::format_date($cycle->anniversarydate);
         $cta = ['url' => self::course_url($cycle), 'label' => get_string("email_cta_{$type}", $component)];
         $note = '';
+        $image = null;
         switch ($type) {
             case 'completion':
                 $details = [];
@@ -245,9 +248,15 @@ class notifier {
                 if ($cycle->timecompleted) {
                     $details[] = [get_string('email_detail_completedon', $component), email::date((int) $cycle->timecompleted)];
                 }
-                $cta['url'] = self::certificate_url() ?: $cta['url'];
+                $cta['url'] = $published['pdf'] ?? (self::certificate_url() ?: $cta['url']);
                 if ($attachment) {
-                    $note = get_string('email_certificate_attached', $component);
+                    $note = get_string(
+                        $attachment->get_mimetype() === 'image/png' ? 'email_certificate_attached_image' : 'email_certificate_attached',
+                        $component
+                    );
+                }
+                if (!empty($published['png'])) {
+                    $image = ['url' => $published['png'], 'alt' => get_string('email_certificate_imagealt', $component)];
                 }
                 break;
             case 'overdue':
@@ -272,6 +281,7 @@ class notifier {
             'heading' => get_string("email_heading_{$type}", $component),
             'body' => $body,
             'details' => $details,
+            'image' => $image,
             'cta' => $cta,
             'note' => $note,
             'hrcopy' => $hrcopy,
@@ -290,10 +300,20 @@ class notifier {
         if (!empty($user->deleted) || !empty($user->suspended)) {
             return false;
         }
-        $certificate = $type === 'completion' ? self::certificate_file($cycle) : null;
-        $subject = self::render($cycle, $user, config::template($type, 'subject'));
-        $body = self::render($cycle, $user, config::template($type, 'body'));
-        $email = self::compose($cycle, $user, $type, $subject, $body, $certificate);
+        $certificate = null;
+        $published = null;
+        if ($type === 'completion') {
+            try {
+                $published = certificate::publish($cycle);
+            } catch (\Throwable $e) {
+                exceptions::raise('certificate_publish_failed', ['key' => (string) $cycle->id, 'error' => $e->getMessage()],
+                    (int) $cycle->userid, null, (int) $cycle->id);
+            }
+            $certificate = certificate::png_file($cycle) ?? certificate::pdf_file($cycle);
+        }
+        $subject = self::render($cycle, $user, config::template($type, 'subject'), $published);
+        $body = self::render($cycle, $user, config::template($type, 'body'), $published);
+        $email = self::compose($cycle, $user, $type, $subject, $body, $certificate, $published);
         $attachname = $certificate ? 'certificate-' . $certificate->get_filename() : '';
 
         $message = new \core\message\message();
@@ -322,7 +342,7 @@ class notifier {
         if (!$hremails) {
             return true;
         }
-        $hrcopy = self::compose($cycle, $user, $type, $subject, $body, $certificate,
+        $hrcopy = self::compose($cycle, $user, $type, $subject, $body, $certificate, $published,
             get_string('email_hrcopy', config::COMPONENT, ['name' => fullname($user), 'email' => $user->email]));
         $hrattachment = $certificate ? $certificate->copy_content_to_temp() : '';
         try {
@@ -348,39 +368,5 @@ class notifier {
             }
         }
         return true;
-    }
-
-    /**
-     * The certificate PDF stored with the cycle's verified completion snapshot, if there is one.
-     *
-     * @param \stdClass $cycle
-     * @return \stored_file|null
-     */
-    private static function certificate_file(\stdClass $cycle): ?\stored_file {
-        global $DB;
-        if (empty($cycle->certificatecode)) {
-            return null;
-        }
-        $snapshots = $DB->get_records(
-            'local_cgt_snapshot',
-            ['cycleid' => $cycle->id, 'type' => 'completion', 'verified' => 1],
-            'id DESC',
-            'id',
-            0,
-            1
-        );
-        if (!$snapshot = reset($snapshots)) {
-            return null;
-        }
-        $filename = clean_param($cycle->certificatecode, PARAM_ALPHANUMEXT) . '.pdf';
-        $file = get_file_storage()->get_file(
-            \context_system::instance()->id,
-            config::COMPONENT,
-            'snapshotcert',
-            $snapshot->id,
-            '/',
-            $filename
-        );
-        return $file ?: null;
     }
 }

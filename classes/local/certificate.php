@@ -17,8 +17,8 @@
 namespace local_caregivertraining\local;
 
 /**
- * Checks that the configured certificate can be issued: its design is complete and it renders the
- * learner's name and certificate code.
+ * The certificate earned in a cycle: the PDF kept with the completion snapshot, a PNG of its first page,
+ * and their public copies in S3.
  *
  * @package    local_caregivertraining
  * @copyright  2026 CI Institute of Nursing
@@ -30,6 +30,9 @@ class certificate {
 
     /** @var string[] Elements that draw an uploaded image. */
     const IMAGE_ELEMENTS = ['bgimage', 'image'];
+
+    /** @var callable|null AWS handler that replaces the network, for tests. */
+    public static $handler = null;
 
     /**
      * Template of the configured certificate activity.
@@ -155,14 +158,184 @@ class certificate {
         return $problems;
     }
 
+    /**
+     * The certificate PDF stored with the cycle's newest verified completion snapshot, if there is one.
+     *
+     * @param \stdClass $cycle
+     * @return \stored_file|null
+     */
+    public static function pdf_file(\stdClass $cycle): ?\stored_file {
+        global $DB;
+        if (empty($cycle->certificatecode)) {
+            return null;
+        }
+        $snapshots = $DB->get_records(
+            'local_cgt_snapshot',
+            ['cycleid' => $cycle->id, 'type' => 'completion', 'verified' => 1],
+            'id DESC',
+            'id',
+            0,
+            1
+        );
+        if (!$snapshot = reset($snapshots)) {
+            return null;
+        }
+        $file = get_file_storage()->get_file(
+            \context_system::instance()->id,
+            config::COMPONENT,
+            'snapshotcert',
+            $snapshot->id,
+            '/',
+            self::filename($cycle, 'pdf')
+        );
+        return $file ?: null;
+    }
 
+    /**
+     * A PNG of the certificate's first page, rendered once and kept next to the PDF so that the
+     * snapshot's retention and privacy deletion cover it.
+     *
+     * @param \stdClass $cycle
+     * @return \stored_file|null null when there is no PDF or it cannot be rendered
+     */
+    public static function png_file(\stdClass $cycle): ?\stored_file {
+        if (!$pdf = self::pdf_file($cycle)) {
+            return null;
+        }
+        $fs = get_file_storage();
+        $record = [
+            'contextid' => $pdf->get_contextid(),
+            'component' => $pdf->get_component(),
+            'filearea' => $pdf->get_filearea(),
+            'itemid' => $pdf->get_itemid(),
+            'filepath' => '/',
+            'filename' => self::filename($cycle, 'png'),
+        ];
+        if ($existing = $fs->get_file(...array_values($record))) {
+            return $existing;
+        }
+        $png = self::render_png($pdf);
+        return $png === null ? null : $fs->create_file_from_string($record + ['userid' => $pdf->get_userid()], $png);
+    }
 
+    /**
+     * Whether certificates are published to S3.
+     *
+     * @return bool
+     */
+    public static function publishing_enabled(): bool {
+        // Unit tests must never reach real storage, whatever the container environment says.
+        if (defined('PHPUNIT_TEST') && PHPUNIT_TEST && !self::$handler) {
+            return false;
+        }
+        return config::s3_bucket() !== '' && config::s3_public_url() !== '';
+    }
 
+    /**
+     * Public address of a published certificate file.
+     *
+     * @param \stdClass $cycle
+     * @param string $extension pdf or png
+     * @return string
+     */
+    public static function public_url(\stdClass $cycle, string $extension): string {
+        return config::s3_public_url() . '/' . implode('/', array_map('rawurlencode', explode('/', self::key($cycle, $extension))));
+    }
 
+    /**
+     * Upload the certificate PDF and PNG to S3. Uploading again replaces the objects, so this is safe to repeat.
+     *
+     * @param \stdClass $cycle
+     * @return array{pdf: string, png?: string}|null public URLs, or null when publishing is off or there is no certificate
+     * @throws \Throwable when an upload fails
+     */
+    public static function publish(\stdClass $cycle): ?array {
+        if (!self::publishing_enabled() || !$pdf = self::pdf_file($cycle)) {
+            return null;
+        }
+        $files = ['pdf' => [$pdf, 'application/pdf']];
+        if ($png = self::png_file($cycle)) {
+            $files['png'] = [$png, 'image/png'];
+        }
+        $client = self::client();
+        $urls = [];
+        foreach ($files as $extension => [$file, $type]) {
+            $client->putObject([
+                'Bucket' => config::s3_bucket(),
+                'Key' => self::key($cycle, $extension),
+                'Body' => $file->get_content(),
+                'ContentType' => $type,
+                'ContentDisposition' => 'inline; filename="certificate-' . self::filename($cycle, $extension) . '"',
+                // Short, because a corrected snapshot replaces the object under the same key.
+                'CacheControl' => 'public, max-age=300',
+            ]);
+            $urls[$extension] = self::public_url($cycle, $extension);
+        }
+        return $urls;
+    }
 
+    /**
+     * Delete the public copies.
+     *
+     * @param \stdClass $cycle
+     * @throws \Throwable when a delete fails
+     */
+    public static function unpublish(\stdClass $cycle): void {
+        if (!self::publishing_enabled() || empty($cycle->certificatecode)) {
+            return;
+        }
+        $client = self::client();
+        foreach (['pdf', 'png'] as $extension) {
+            $client->deleteObject(['Bucket' => config::s3_bucket(), 'Key' => self::key($cycle, $extension)]);
+        }
+    }
 
+    /**
+     * File name for a certificate file.
+     *
+     * @param \stdClass $cycle
+     * @param string $extension
+     * @return string
+     */
+    private static function filename(\stdClass $cycle, string $extension): string {
+        return clean_param($cycle->certificatecode, PARAM_ALPHANUMEXT) . '.' . $extension;
+    }
 
+    /**
+     * S3 key for a certificate file. The certificate code is random, so keys cannot be guessed.
+     *
+     * @param \stdClass $cycle
+     * @param string $extension
+     * @return string
+     */
+    private static function key(\stdClass $cycle, string $extension): string {
+        return config::s3_prefix() . self::filename($cycle, $extension);
+    }
 
+    /**
+     * Render the first page of a PDF to PNG with Ghostscript.
+     *
+     * @param \stored_file $pdf
+     * @return string|null PNG bytes, or null when Ghostscript is unavailable or fails
+     */
+    private static function render_png(\stored_file $pdf): ?string {
+        if (!$gs = self::ghostscript()) {
+            return null;
+        }
+        $dir = make_request_directory();
+        $input = "{$dir}/certificate.pdf";
+        $output = "{$dir}/certificate.png";
+        $pdf->copy_content_to($input);
+        $command = escapeshellarg($gs) . ' -q -dSAFER -dBATCH -dNOPAUSE -sDEVICE=png16m -r150'
+            . ' -dTextAlphaBits=4 -dGraphicsAlphaBits=4 -dFirstPage=1 -dLastPage=1'
+            . ' -sOutputFile=' . escapeshellarg($output) . ' ' . escapeshellarg($input) . ' 2>&1';
+        exec($command, $lines, $status);
+        if ($status !== 0 || !is_readable($output) || !filesize($output)) {
+            debugging('Certificate PNG rendering failed: ' . implode(' ', $lines), DEBUG_DEVELOPER);
+            return null;
+        }
+        return file_get_contents($output);
+    }
 
     /**
      * Text of a PDF, lower case with whitespace collapsed.
@@ -225,4 +398,27 @@ class certificate {
         return $file ?: null;
     }
 
+    /**
+     * S3 client for the configured bucket.
+     *
+     * @return \Aws\S3\S3Client
+     */
+    private static function client(): \Aws\S3\S3Client {
+        $options = [
+            'version' => 'latest',
+            'region' => config::s3_region(),
+            'http' => ['connect_timeout' => 10, 'timeout' => 60],
+        ];
+        if ($endpoint = config::s3_endpoint()) {
+            $options['endpoint'] = $endpoint;
+            $options['use_path_style_endpoint'] = true;
+        }
+        if (config::s3_access_key() !== '') {
+            $options['credentials'] = ['key' => config::s3_access_key(), 'secret' => config::s3_secret_key()];
+        }
+        if (self::$handler) {
+            $options['handler'] = self::$handler;
+        }
+        return new \Aws\S3\S3Client($options);
+    }
 }

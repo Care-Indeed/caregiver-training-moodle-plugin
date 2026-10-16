@@ -133,6 +133,19 @@ class completion_manager {
                 );
             }
 
+            try {
+                certificate::publish($cycle);
+            } catch (\Throwable $e) {
+                // The completion email retries the upload and links to the certificate activity if it still fails.
+                exceptions::raise(
+                    'certificate_publish_failed',
+                    ['key' => (string) $cycle->id, 'error' => $e->getMessage()],
+                    (int) $cycle->userid,
+                    null,
+                    (int) $cycle->id
+                );
+            }
+
             \local_caregivertraining\event\cycle_completed::create([
                 'context' => \context_course::instance($cycle->courseid),
                 'relateduserid' => (int) $cycle->userid,
