@@ -167,7 +167,7 @@ Errors use one shape, based on [AlayaCare's error responses](https://developer.a
 | 404 | `routenotfound` | No endpoint matches the method and path. |
 | 404 | `learnernotfound` | No learner is bound to this AlayaCare id. |
 | 404 | `bindingmismatch` | The `userid` and `alayacareid` don't match an existing binding. |
-| 404 | `usernotfound` | The Moodle user doesn't exist, is deleted, or can't be linked (guest or site admin). |
+| 404 | `usernotfound` | The Moodle user doesn't exist, is deleted, or can't be linked (guest, site admin, suspended, a `nologin` or `webservice` account, an account with the adapter API capability, or the calling account itself). |
 | 404 | `cyclenotfound` | No cycle has this Cycle ID, or it belongs to another learner. |
 | 405 | `methodnotallowed` | Wrong method for this path. |
 | 409 | `existingaccount` | An unbound Moodle account already uses this email. |
@@ -482,7 +482,8 @@ How the request is resolved:
    - Otherwise update name, email and profile fields and return `updated` or `unchanged`. Changing the email to one
      used by another account fails with `bindingconflict`.
 3. If `alayacareid` is not bound and `userid` is given:
-   - If the user is missing, deleted, a guest or a site admin, fail with `usernotfound`.
+   - If the user is missing, deleted, a guest, a site admin, suspended, uses `nologin` or `webservice`
+     authentication, holds `local/caregivertraining:adapterapi`, or is the calling account, fail with `usernotfound`.
    - If the user is bound to another employee, fail with `bindingconflict`.
    - Otherwise link them and return `linked`.
 4. If `alayacareid` is not bound and no `userid` is given:

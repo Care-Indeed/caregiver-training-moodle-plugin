@@ -135,6 +135,29 @@ final class binding_test extends \advanced_testcase {
         $this->assertEquals($existing->id, $linked['userid']);
     }
 
+    public function test_service_and_disabled_accounts_are_never_linked(): void {
+        global $DB;
+        $gen = $this->getDataGenerator();
+        $adapter = $gen->create_user();
+        $roleid = $gen->create_role(['shortname' => 'cgtadapter']);
+        assign_capability('local/caregivertraining:adapterapi', CAP_ALLOW, $roleid, \context_system::instance());
+        role_assign($roleid, $adapter->id, \context_system::instance());
+        $candidates = [
+            $adapter,
+            $gen->create_user(['auth' => 'webservice']),
+            $gen->create_user(['auth' => 'nologin']),
+            $gen->create_user(['suspended' => 1]),
+        ];
+        foreach ($candidates as $user) {
+            $this->assert_error('error:usernotfound', fn() => binding_manager::provision($this->payload(['userid' => $user->id])));
+        }
+
+        $caller = $gen->create_user();
+        $this->setUser($caller);
+        $this->assert_error('error:usernotfound', fn() => binding_manager::provision($this->payload(['userid' => $caller->id])));
+        $this->assertFalse($DB->record_exists('local_cgt_binding', []));
+    }
+
     public function test_ambiguous_email_creates_nothing(): void {
         global $CFG, $DB;
         $CFG->allowaccountssameemail = 1;

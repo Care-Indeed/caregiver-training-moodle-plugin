@@ -72,6 +72,20 @@ class binding_manager {
     }
 
     /**
+     * Whether an existing account may be linked to an employee: a person who can log in, not a service account.
+     *
+     * @param \stdClass $user
+     * @return bool
+     */
+    private static function linkable(\stdClass $user): bool {
+        global $USER;
+        return !isguestuser($user) && !is_siteadmin($user) && empty($user->suspended)
+            && !in_array($user->auth, ['nologin', 'webservice'], true)
+            && (int) $user->id !== (int) $USER->id
+            && !has_capability('local/caregivertraining:adapterapi', \context_system::instance(), $user);
+    }
+
+    /**
      * Active (non-deleted) users with this email, compared case-insensitively.
      *
      * @param string $email
@@ -254,7 +268,7 @@ class binding_manager {
             } else {
                 if (!empty($p['userid'])) {
                     $user = $DB->get_record('user', ['id' => (int) $p['userid'], 'deleted' => 0]);
-                    if (!$user || isguestuser($user) || is_siteadmin($user)) {
+                    if (!$user || !self::linkable($user)) {
                         throw new \moodle_exception('error:usernotfound', config::COMPONENT);
                     }
                     if ($other = self::get_by_userid((int) $user->id)) {

@@ -193,8 +193,8 @@ Environment variables override some settings, so a value you save may not take e
 5. At **Site administration → Server → Web services → Manage tokens**, create a token for the account on that
    service, with an expiry date. Give the token to the adapter team as a secret.
 
-The adapter must never send the adapter account's own user id as a learner's `userid`. If it does, the learner is
-linked to the service account and never receives their own login.
+The adapter should only send `userid` for an existing learner's own account. The plugin refuses (`404 usernotfound`)
+to link a learner to the adapter account or any other service account, a suspended account, a guest or a site admin.
 
 ### 6. Check that everything is ready
 
