@@ -119,6 +119,10 @@ final class completion_test extends \advanced_testcase {
         $recipients = array_map(fn($m) => $m->to, $sink->get_messages());
         sort($recipients);
         $this->assertSame(['hr@example.com', $this->learner->user->email], $recipients);
+        foreach ($sink->get_messages() as $message) {
+            $this->assertStringContainsString($cycle->certificatecode . '.pdf', $message->body, 'certificate PDF attached');
+            $this->assertStringNotContainsString('downloadown', $message->body, 'emailed links cannot download directly');
+        }
     }
 
     public function test_certificate_is_issued_when_missing(): void {

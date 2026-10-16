@@ -180,7 +180,8 @@ class notifier {
         );
         $certurl = '';
         if ($cmid = config::certificate_cmid()) {
-            $certurl = (new \moodle_url('/mod/customcert/view.php', ['id' => $cmid, 'downloadown' => 1]))->out(false);
+            // customcert only serves downloadown to a POST with a sesskey, so an emailed link must open the activity page.
+            $certurl = (new \moodle_url('/mod/customcert/view.php', ['id' => $cmid]))->out(false);
         }
         $replacements = [
             '{firstname}' => $user->firstname,
@@ -225,23 +226,72 @@ class notifier {
         $message->contexturl = (new \moodle_url('/course/view.php', ['id' => $cycle->courseid]))->out(false);
         $message->contexturlname = get_string('banner_title', config::COMPONENT);
         $message->courseid = $cycle->courseid;
+        $certificate = $type === 'completion' ? self::certificate_file($cycle) : null;
+        if ($certificate) {
+            $message->attachment = $certificate;
+            $message->attachname = $certificate->get_filename();
+        }
         if (!message_send($message)) {
             return false;
         }
 
-        foreach (config::hr_cc_emails() as $email) {
-            $recipient = \core_user::get_noreply_user();
-            $recipient->email = $email;
-            $recipient->firstname = 'HR';
-            $recipient->lastname = '';
-            $recipient->mailformat = 1;
-            email_to_user(
-                $recipient,
-                \core_user::get_noreply_user(),
-                '[Copy] ' . $subject . ' - ' . fullname($user),
-                $body
-            );
+        $hrattachment = $certificate ? $certificate->copy_content_to_temp() : '';
+        try {
+            foreach (config::hr_cc_emails() as $email) {
+                $recipient = \core_user::get_noreply_user();
+                $recipient->email = $email;
+                $recipient->firstname = 'HR';
+                $recipient->lastname = '';
+                $recipient->mailformat = 1;
+                email_to_user(
+                    $recipient,
+                    \core_user::get_noreply_user(),
+                    '[Copy] ' . $subject . ' - ' . fullname($user),
+                    $body,
+                    '',
+                    $hrattachment,
+                    $certificate ? $certificate->get_filename() : ''
+                );
+            }
+        } finally {
+            if ($hrattachment && file_exists($hrattachment)) {
+                unlink($hrattachment);
+            }
         }
         return true;
+    }
+
+    /**
+     * The certificate PDF stored with the cycle's verified completion snapshot, if there is one.
+     *
+     * @param \stdClass $cycle
+     * @return \stored_file|null
+     */
+    private static function certificate_file(\stdClass $cycle): ?\stored_file {
+        global $DB;
+        if (empty($cycle->certificatecode)) {
+            return null;
+        }
+        $snapshots = $DB->get_records(
+            'local_cgt_snapshot',
+            ['cycleid' => $cycle->id, 'type' => 'completion', 'verified' => 1],
+            'id DESC',
+            'id',
+            0,
+            1
+        );
+        if (!$snapshot = reset($snapshots)) {
+            return null;
+        }
+        $filename = clean_param($cycle->certificatecode, PARAM_ALPHANUMEXT) . '.pdf';
+        $file = get_file_storage()->get_file(
+            \context_system::instance()->id,
+            config::COMPONENT,
+            'snapshotcert',
+            $snapshot->id,
+            '/',
+            $filename
+        );
+        return $file ?: null;
     }
 }
