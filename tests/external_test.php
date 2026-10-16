@@ -41,11 +41,20 @@ final class external_test extends \advanced_testcase {
     private $adapter;
     /** @var \stdClass */
     private $fixture;
+    /** @var array environment overrides cleared for the test, restored afterwards */
+    private $env = [];
 
     protected function setUp(): void {
         global $CFG;
         require_once($CFG->dirroot . '/webservice/tests/helpers.php');
         parent::setUp();
+        // Deployments set these; the assertions here are about plugin settings alone.
+        foreach (getenv() as $name => $value) {
+            if (str_starts_with($name, 'CAREGIVERTRAINING_')) {
+                $this->env[$name] = $value;
+                putenv($name);
+            }
+        }
         $this->resetAfterTest();
         $this->setAdminUser();
         $this->fixture = $this->getDataGenerator()->get_plugin_generator('local_caregivertraining')->create_annual_course();
@@ -53,6 +62,13 @@ final class external_test extends \advanced_testcase {
         $roleid = $this->getDataGenerator()->create_role(['shortname' => 'cgtadapter']);
         assign_capability('local/caregivertraining:adapterapi', CAP_ALLOW, $roleid, \context_system::instance());
         role_assign($roleid, $this->adapter->id, \context_system::instance());
+    }
+
+    protected function tearDown(): void {
+        foreach ($this->env as $name => $value) {
+            putenv("{$name}={$value}");
+        }
+        parent::tearDown();
     }
 
     /**
