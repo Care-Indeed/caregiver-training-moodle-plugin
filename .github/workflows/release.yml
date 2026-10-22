@@ -1,0 +1,37 @@
+name: Release
+
+# Pushing a tag vX.Y.Z publishes a GitHub release with the installable ZIP. The moodle repository
+# picks up new releases and opens a pull request that moves production to the tag.
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Publish release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check the tag matches version.php
+        id: version
+        run: |
+          release=$(sed -n "s/^\$plugin->release = '\(.*\)';/\1/p" version.php)
+          if [ "v$release" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match \$plugin->release '$release' in version.php."
+            exit 1
+          fi
+          echo "zip=local_caregivertraining-$release.zip" >> "$GITHUB_OUTPUT"
+
+      # Moodle's plugin installer expects the plugin in a top-level folder named after it.
+      - name: Build the ZIP
+        run: git archive --format=zip --prefix=caregivertraining/ -o "${{ steps.version.outputs.zip }}" "$GITHUB_REF_NAME"
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" "${{ steps.version.outputs.zip }}" --verify-tag --generate-notes --title "$GITHUB_REF_NAME"
