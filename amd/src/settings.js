@@ -45,17 +45,21 @@ export const init = (courseid, certificateid, notset) => {
             methodname: 'local_caregivertraining_course_certificates',
             args: {courseid: parseInt(course.value, 10) || 0},
         }])[0].then((certificates) => {
-            if (current !== request) {
-                // A later change is already loading.
-                return;
+            // Skip a response when a later change is already loading.
+            if (current === request) {
+                const selected = certificate.value;
+                certificate.replaceChildren(new Option(notset, '0'));
+                certificates.forEach(({cmid, name}) => certificate.add(new Option(name, String(cmid))));
+                // Keep the choice when it is in the new course; pick the course's only certificate; otherwise ask.
+                let value = '0';
+                if (certificates.some(({cmid}) => String(cmid) === selected)) {
+                    value = selected;
+                } else if (certificates.length === 1) {
+                    value = String(certificates[0].cmid);
+                }
+                certificate.value = value;
+                certificate.dispatchEvent(new Event('change', {bubbles: true}));
             }
-            const selected = certificate.value;
-            certificate.replaceChildren(new Option(notset, '0'));
-            certificates.forEach(({cmid, name}) => certificate.add(new Option(name, String(cmid))));
-            // Keep the choice when it is in the new course; pick the course's only certificate; otherwise ask.
-            const keep = certificates.some(({cmid}) => String(cmid) === selected);
-            certificate.value = keep ? selected : (certificates.length === 1 ? String(certificates[0].cmid) : '0');
-            certificate.dispatchEvent(new Event('change', {bubbles: true}));
             return certificates;
         }).catch(Notification.exception);
     });
