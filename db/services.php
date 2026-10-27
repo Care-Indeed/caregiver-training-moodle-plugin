@@ -69,6 +69,14 @@ $functions = [
         'loginrequired' => true,
         'capabilities' => 'local/caregivertraining:recordtime',
     ],
+    'local_caregivertraining_course_certificates' => [
+        'classname' => \local_caregivertraining\external\course_certificates::class,
+        'description' => 'List the Custom certificate activities of a course for the plugin settings page.',
+        'type' => 'read',
+        'ajax' => true,
+        'loginrequired' => true,
+        'capabilities' => 'moodle/site:config',
+    ],
 ];
 
 $services = [

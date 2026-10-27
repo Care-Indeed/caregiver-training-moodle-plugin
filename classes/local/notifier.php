@@ -183,7 +183,9 @@ class notifier {
             '{courseurl}' => self::course_url($cycle),
             '{cycleid}' => $cycle->cycleid,
             '{certificatecode}' => (string) $cycle->certificatecode,
-            '{certificateurl}' => $published['pdf'] ?? self::certificate_url(),
+            '{certificateurl}' => self::certificate_link($published),
+            '{loginurl}' => (new \moodle_url('/login/index.php'))->out(false),
+            '{quickstartguideurl}' => config::quick_start_guide_url(),
         ];
         return strtr($text, $replacements);
     }
@@ -209,6 +211,16 @@ class notifier {
     }
 
     /**
+     * The certificate link in emails: the public PDF when published, otherwise the certificate activity.
+     *
+     * @param array|null $published public certificate URLs from {@see certificate::publish()}
+     * @return string
+     */
+    private static function certificate_link(?array $published): string {
+        return $published['pdf'] ?? self::certificate_url();
+    }
+
+    /**
      * Certificate activity URL, or an empty string when no certificate is configured.
      *
      * @return string
@@ -223,73 +235,42 @@ class notifier {
      * Build the branded email for a notification type.
      *
      * @param \stdClass $cycle
-     * @param \stdClass $user
      * @param string $type
      * @param string $subject rendered subject
      * @param string $body rendered body
-     * @param \stored_file|null $attachment attached certificate file
      * @param array|null $published public certificate URLs
      * @param string $hrcopy HR copy banner, empty for the learner
      * @return array{html: string, text: string}
      */
     private static function compose(
         \stdClass $cycle,
-        \stdClass $user,
         string $type,
         string $subject,
         string $body,
-        ?\stored_file $attachment,
         ?array $published,
         string $hrcopy = ''
     ): array {
         $component = config::COMPONENT;
-        $duedate = self::format_date($cycle->anniversarydate);
-        $cta = ['url' => self::course_url($cycle), 'label' => get_string("email_cta_{$type}", $component)];
-        $note = '';
+        $url = self::course_url($cycle);
+        if ($type === 'completion') {
+            $url = self::certificate_link($published) ?: $url;
+        }
         $image = null;
-        switch ($type) {
-            case 'completion':
-                $details = [];
-                if ($cycle->certificatecode) {
-                    $details[] = [get_string('email_detail_certificatecode', $component), $cycle->certificatecode];
-                }
-                if ($cycle->timecompleted) {
-                    $details[] = [get_string('email_detail_completedon', $component), email::date((int) $cycle->timecompleted)];
-                }
-                $cta['url'] = $published['pdf'] ?? (self::certificate_url() ?: $cta['url']);
-                if ($attachment) {
-                    $isimage = $attachment->get_mimetype() === 'image/png';
-                    $note = get_string($isimage ? 'email_certificate_attached_image' : 'email_certificate_attached', $component);
-                }
-                if (!empty($published['png'])) {
-                    $image = ['url' => $published['png'], 'alt' => get_string('email_certificate_imagealt', $component)];
-                }
-                break;
-            case 'overdue':
-                $details = [
-                    [get_string('email_detail_wasdue', $component), $duedate],
-                    [get_string('email_detail_accessend', $component),
-                        self::format_date(cycle_manager::access_end_date($cycle->anniversarydate))],
-                ];
-                break;
-            default:
-                $details = [[get_string('email_detail_completeby', $component), $duedate]];
+        if ($type === 'completion' && !empty($published['png'])) {
+            $image = ['url' => $published['png'], 'alt' => get_string('email_certificate_imagealt', $component)];
         }
         return email::render([
             'subject' => $subject,
-            'preheader' => get_string("email_preheader_{$type}", $component, $duedate),
+            'preheader' => get_string("email_preheader_{$type}", $component, self::format_date($cycle->anniversarydate)),
             'label' => get_string("email_label_{$type}", $component),
             'tone' => match ($type) {
                 'due', 'overdue' => 'alert',
                 'completion' => 'success',
                 default => 'info',
             },
-            'heading' => get_string("email_heading_{$type}", $component),
             'body' => $body,
-            'details' => $details,
             'image' => $image,
-            'cta' => $cta,
-            'note' => $note,
+            'cta' => ['url' => $url, 'label' => get_string("email_cta_{$type}", $component)],
             'hrcopy' => $hrcopy,
         ]);
     }
@@ -320,11 +301,12 @@ class notifier {
                     (int) $cycle->id
                 );
             }
-            $certificate = certificate::png_file($cycle) ?? certificate::pdf_file($cycle);
+            // The email says the certificate PDF is attached; the image is only a fallback when no PDF exists.
+            $certificate = certificate::pdf_file($cycle) ?? certificate::png_file($cycle);
         }
         $subject = self::render($cycle, $user, config::template($type, 'subject'), $published);
         $body = self::render($cycle, $user, config::template($type, 'body'), $published);
-        $email = self::compose($cycle, $user, $type, $subject, $body, $certificate, $published);
+        $email = self::compose($cycle, $type, $subject, $body, $published);
         $attachname = $certificate ? 'certificate-' . $certificate->get_filename() : '';
 
         $message = new \core\message\message();
@@ -355,11 +337,9 @@ class notifier {
         }
         $hrcopy = self::compose(
             $cycle,
-            $user,
             $type,
             $subject,
             $body,
-            $certificate,
             $published,
             get_string('email_hrcopy', config::COMPONENT, ['name' => fullname($user), 'email' => $user->email])
         );

@@ -29,32 +29,37 @@
     * label - status label above the heading
     * labelbg, labelfg - status label colours
     * heading - main heading
-    * bodyhtml - escaped, paragraph-formatted body
-    * hasdetails, details - label/value rows for the key facts
+    * blocks - the body in order: escaped paragraphs (html) and the one primary button (button with url and label)
     * image - picture with url, alt and link (optional)
-    * cta - button with url, label and fallback text (optional)
-    * notehtml - escaped extra note below the button (optional)
-    * footer - footer text
+    * footer - context for local_caregivertraining/email_footer
 
     Example context (json):
     {
-        "subject": "Your annual caregiver training is now open",
+        "subject": "Now Open: Your Annual Training, Due November 12, 2026",
         "preheader": "Complete it on or before November 12, 2026.",
         "sitename": "CI Institute of Nursing",
         "logourl": "",
         "hrcopy": "",
-        "label": "Training open",
+        "label": "Training is Open",
         "labelbg": "#FFF6DD",
         "labelfg": "#946D00",
-        "heading": "Your annual training is open",
-        "bodyhtml": "<p>Hello Aldrin,</p><p>Your annual caregiver training is now open.</p>",
-        "hasdetails": true,
-        "details": [{"label": "Complete by", "value": "November 12, 2026"}],
+        "heading": "Now Open: Your Annual Training, Due November 12, 2026",
+        "blocks": [
+            {"html": "<p>Hello Aldrin,</p><p>Good news: your annual caregiver training is now open.</p>"},
+            {"html": "<p>Start your training here:</p>"},
+            {"button": {"url": "https://example.com/course/view.php?id=2", "label": "Continue Training"} },
+            {"html": "<p>Thank you for the care you give every day.<br>CI Institute of Nursing</p>"}
+        ],
         "image": null,
-        "cta": {"url": "https://example.com/course/view.php?id=2", "label": "Start training",
-            "fallback": "Button not working? Copy this link into your browser:"},
-        "notehtml": "",
-        "footer": "CI Institute of Nursing · Annual caregiver training."
+        "footer": {
+            "guide": {"heading": "Need a hand?", "text": "Our Quick Start Guide walks you through it:",
+                "url": "https://example.com/guide"},
+            "hr": {"heading": "Questions about your training or due date?", "label": "HR Compliance:",
+                "phone": "(650) 278-8013", "tel": "tel:+16502788013", "separator": true,
+                "email": "HRCompliance@careindeed.com"},
+            "support": {"heading": "Trouble logging in or using the platform?", "label": "CI-ION Systems:",
+                "email": "systemadmin@ci-ion.com"}
+        }
     }
 }}
 <!DOCTYPE html>
@@ -92,53 +97,35 @@
         </td>
     </tr>
     <tr>
-        <td style="padding:18px 32px 0 32px;font-size:15px;line-height:1.65;color:#544B4B;">{{{bodyhtml}}}</td>
-    </tr>
-    {{#hasdetails}}
-    <tr>
-        <td style="padding:6px 32px 0 32px;">
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFFBF0;border-left:4px solid #FFCE47;border-radius:8px;">
-                {{#details}}
-                <tr>
-                    <td style="padding:10px 16px;font-size:13px;line-height:1.4;color:#857676;width:42%;">{{label}}</td>
-                    <td style="padding:10px 16px;font-size:14px;line-height:1.4;font-weight:600;color:#1B1818;">{{value}}</td>
-                </tr>
-                {{/details}}
-            </table>
-        </td>
-    </tr>
-    {{/hasdetails}}
-    {{#image}}
-    <tr>
-        <td style="padding:24px 32px 0 32px;">
-            <a href="{{link}}" target="_blank" style="text-decoration:none;"><img src="{{url}}" alt="{{alt}}" width="536" style="display:block;width:100%;max-width:536px;height:auto;border:1px solid #E1DDDD;border-radius:8px;outline:none;"></a>
-        </td>
-    </tr>
-    {{/image}}
-    {{#cta}}
-    <tr>
-        <td style="padding:28px 32px 0 32px;">
-            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+        <td style="padding:18px 32px 0 32px;font-size:15px;line-height:1.65;color:#544B4B;">
+            {{#blocks}}
+            {{#html}}{{{html}}}{{/html}}
+            {{#button}}
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:4px 0 22px 0;">
                 <tr>
                     <td align="center" bgcolor="#B11517" style="border-radius:8px;background-color:#B11517;">
                         <a href="{{url}}" target="_blank" style="display:inline-block;padding:14px 28px;font-size:15px;font-weight:600;line-height:1;color:#FFFFFF;text-decoration:none;border-radius:8px;">{{label}}</a>
                     </td>
                 </tr>
             </table>
-            <p style="margin:14px 0 0 0;font-size:12px;line-height:1.5;color:#857676;">{{fallback}}<br><a href="{{url}}" target="_blank" style="color:#B11517;word-break:break-all;">{{url}}</a></p>
+            {{/button}}
+            {{/blocks}}
         </td>
     </tr>
-    {{/cta}}
-    {{#notehtml}}
+    {{#image}}
     <tr>
-        <td style="padding:20px 32px 0 32px;font-size:13px;line-height:1.6;color:#544B4B;">{{{notehtml}}}</td>
-    </tr>
-    {{/notehtml}}
-    <tr>
-        <td style="padding:32px 32px 28px 32px;">
-            <div style="border-top:1px solid #E1DDDD;padding-top:16px;font-size:12px;line-height:1.6;color:#857676;">{{footer}}</div>
+        <td style="padding:8px 32px 0 32px;">
+            <a href="{{link}}" target="_blank" style="text-decoration:none;"><img src="{{url}}" alt="{{alt}}" width="536" style="display:block;width:100%;max-width:536px;height:auto;border:1px solid #E1DDDD;border-radius:8px;outline:none;"></a>
         </td>
     </tr>
+    {{/image}}
+    {{#footer}}
+    <tr>
+        <td style="padding:24px 32px 28px 32px;">
+            {{> local_caregivertraining/email_footer}}
+        </td>
+    </tr>
+    {{/footer}}
 </table>
 </td>
 </tr>

@@ -132,55 +132,63 @@ plugin's tables, which removes every learner link, cycle and snapshot.
 
 ### 4. Configure the plugin settings
 
-Go to **Site administration → Plugins → Local plugins → Caregiver annual training → Settings**.
+Go to **Site administration → Plugins → Local plugins → Caregiver annual training**. Like other Moodle plugins, the settings are
+split into pages: **General settings**, **Training time**, **Notifications**, **Email templates**, **Certificate
+storage** and **AlayaCare integration**, followed by the **Training records** page. Each page has its own **Save
+changes** button.
 
-**Annual course**
+While something still stops learners from completing (no course or certificate chosen, the time rule not decided, or
+no activities counting toward the time), **General settings** starts with a warning listing what to fix. Settings
+that don't apply are hidden: for example, the activity list only appears once you choose how time is counted.
 
-| Setting | What to enter |
-| --- | --- |
-| Annual course ID | The course id, from the course URL (`course/view.php?id=…`). |
-| Learner role | `0` for the default student role, or the id of another role. |
-| Custom certificate course module ID | The certificate's id, from its URL (`mod/customcert/view.php?id=…`). Required. |
-| Required certificate design | Optional. Paste the design fingerprint shown under the setting to pin the approved design. |
-| Compliance timezone | The timezone used for due dates, for example `America/Los_Angeles`. |
-
-**Five-hour time policy**
+**General settings**
 
 | Setting | What to enter |
 | --- | --- |
-| Time policy | **Tracked** counts active time, and **Nominal** credits a fixed time per completed activity. **Unresolved** (the default) blocks every completion until HR decides, so change it before go-live. |
-| Required seconds | `18000` for five hours. |
-| Count every activity in the annual course | Tick to count time in every activity, including ones added later. Otherwise list the course module ids in **Countable course module IDs**. |
-| Excluded activity types | When every activity counts, the types that don't count, for example the certificate or feedback survey. |
-| Nominal durations | Only for the nominal policy: seconds per activity, as JSON such as `{"12": 1800}`. |
-| Heartbeat interval and Idle threshold | How often the browser reports activity, and how long without interaction before counting stops. The defaults suit most courses. |
+| Annual training course | Pick the course (type to search). Save before choosing the certificate. |
+| Learner role | **Default (Student)**, or another course role. |
+| Compliance timezone | The timezone due dates are counted in, for example `America/Los_Angeles`. |
+| Keep completion records for (years) | At least 3. |
+| Certificate activity | The Custom certificate activity of the annual course. Required. |
+| Locked certificate design | Optional. Paste the fingerprint shown under the setting to lock the approved design. |
+
+**Training time**
+
+| Setting | What to enter |
+| --- | --- |
+| How time is counted | **Time actually spent** counts active time. **Set time per activity** credits a fixed time per completed activity. **Not decided yet** (the default) blocks every completion, so change it before go-live. |
+| Minimum training time | In hours or minutes, for example 5 hours. Set it to 0 when completing the course is enough. |
+| Count every activity in the course | Tick to count every activity, including ones added later, then pick the **Activity types that don't count**. Untick to pick the **Activities that count** from a list. |
+| Time per activity | Only for **Set time per activity**: seconds per activity, as JSON such as `{"12": 1800}`. The course's activity numbers are listed under the box. |
+| Check-in interval and Idle after | Only for **Time actually spent**. The defaults suit most courses. |
 
 **Notifications**
 
 | Setting | What to enter |
 | --- | --- |
-| Send window-open, due-date, overdue and completion emails | Switch each email type on or off. Window-open and completion are on by default. |
-| Reminder offsets | Days before the due date to send reminders, for example `30,14`. Empty sends none. |
-| HR copy recipients | Comma-separated addresses that get a copy of every learner email. |
-| Subject and body for each email | Leave empty to use the default wording, or write your own using the [placeholders](#placeholders). |
+| Training open, Due today, Overdue and Completion email | Switch each email on or off. Training open and Completion are on by default. |
+| Reminder emails | Days before the due date to send reminders, for example `30,14`. Empty sends none. |
+| Copy HR on emails | Comma-separated addresses that get a copy of every learner email. |
 
-**Certificate storage (S3)** is optional. Leave the bucket empty to keep certificates in Moodle only. When set, each
+**Email templates** has a **Subject** and **Message** for each email, filled in with the default wording. Edit them
+using the [placeholders](#placeholders); empty a field to go back to the default.
+
+**Certificate storage** (S3) is optional. Leave the bucket empty to keep certificates in Moodle only. When set, each
 completed certificate is published as a PDF and an image at an unguessable public address. In AWS, leave the access
 and secret keys empty to use the server's own credentials.
 
-**Adapter write-back**
+**AlayaCare integration**
 
 | Setting | What to enter |
 | --- | --- |
-| Deliver events to the adapter | Tick to send `cycle.completed` events. |
-| Adapter event endpoint | The adapter's HTTPS address. |
-| Adapter signing secret | The shared secret used to sign each event. |
-| Maximum delivery attempts | How many times a failed event is retried before it is marked failed (default 20). |
-| Snapshot retention (years) | At least 3. |
+| Send completions to AlayaCare | Tick to send `cycle.completed` events, once the address and secret are set. |
+| Adapter address | The adapter's HTTPS address. |
+| Signing secret | The shared secret used to sign each event. |
+| Retry limit | How many times a failed event is retried before it is listed as an exception (default 20). |
 
-Environment variables override some settings, so a value you save may not take effect. When
-`CAREGIVERTRAINING_ADAPTER_ENABLED`, `CAREGIVERTRAINING_ADAPTER_URL`, `CAREGIVERTRAINING_ADAPTER_SECRET`,
-`CAREGIVERTRAINING_CERTIFICATE_FINGERPRINT` or any `CAREGIVERTRAINING_S3_*` variable is set on the server, it wins.
+Environment variables override some settings. When `CAREGIVERTRAINING_ADAPTER_ENABLED`,
+`CAREGIVERTRAINING_ADAPTER_URL`, `CAREGIVERTRAINING_ADAPTER_SECRET`, `CAREGIVERTRAINING_CERTIFICATE_FINGERPRINT` or
+any `CAREGIVERTRAINING_S3_*` variable is set on the server, it wins, and a yellow note under that setting says so.
 
 ### 5. Connect the AlayaCare adapter
 
@@ -201,8 +209,8 @@ to link a learner to the adapter account or any other service account, a suspend
 Ask the adapter team to call the health check, `GET /local/caregivertraining/api.php/v1/health`, or check these
 yourself:
 
-- The **Caregiver training** administrator view opens without errors.
-- The Time policy setting isn't **Unresolved**.
+- The **Training records** page opens without errors.
+- **How time is counted** isn't **Not decided yet**.
 - **Site administration → Server → Tasks → Scheduled tasks** shows the plugin's tasks running (see
   [Scheduled tasks](#scheduled-tasks)).
 
@@ -241,9 +249,9 @@ cycles.
 | `cycle_not_open` | The window hasn't opened. | Wait for the open date. |
 | `course_not_complete` | Moodle hasn't recorded course completion. | The learner finishes the activities, and the "Calculate regular completion data" task runs. |
 | `completion_predates_cycle` | The course completion is from before this cycle. | The learner completes the course again in this cycle. |
-| `time_policy_unresolved` | The Time policy is still Unresolved. | Choose Tracked or Nominal. |
+| `time_policy_unresolved` | **How time is counted** is still **Not decided yet**. | Choose **Time actually spent** or **Set time per activity**. |
 | `time_requirement_not_met` | Not enough time recorded. | The learner keeps working on activity pages until the banner reaches the requirement. |
-| `certificate_not_configured` | No valid certificate is set. | Set the Custom certificate course module ID. |
+| `certificate_not_configured` | No valid certificate is set. | Choose the **Certificate activity** in **General settings**. |
 | `certificate_template_incomplete` | The certificate design can't be issued. | Fix the design (name, code, no empty pages, no missing images, or the approved fingerprint). |
 
 ## What learners see
@@ -265,37 +273,58 @@ unlock the next one." There's no button on the course page or on the last activi
 **Completion.** When everything is done, the banner says "Completed on …", the certificate appears in the
 certificate activity, and the completion email arrives with the certificate code and link.
 
-## The administrator view
+## The Training records page
 
-Go to **Site administration → Plugins → Local plugins → Caregiver annual training → Caregiver training**, or open
-`/local/caregivertraining/index.php`.
+Go to **Site administration → Plugins → Local plugins → Caregiver annual training → Training records** (the first
+link in the plugin's menu), or open `/local/caregivertraining/index.php`.
 
-| Tab | Shows | Action |
+The page opens on **Employees**. The menu at the top switches between three views; the numbers show how many
+items need attention.
+
+| View | Shows | Actions |
 | --- | --- | --- |
-| Identity and data exceptions | Problems that need a person to decide, such as duplicate emails, payroll numbers bound to another employee, failed certificate renders or failed event deliveries. Repeats are counted on one row. | **Mark resolved** once handled. |
-| Blocked resets | Cycles whose snapshot or reset failed, with the reason. | **Retry after review** runs the snapshot and reset again. |
-| Current cycles | Every cycle with the employee, AlayaCare ID, payroll number, status, compliance, due date, access end, approved time and certificate code. | **Archive (hide)** a completed cycle from the default view. Nothing is deleted. |
-| Prior-cycle snapshots | The evidence kept before each reset and at completion, with its verification status and certificate PDF links. | None. |
+| Employees | One row per employee with their latest cycle: Cycle ID, status, due date, completion date and number of cycles. Search by name, AlayaCare ID, payroll or HCA number, Cycle ID or certificate code, and filter by status (Open, Overdue, Upcoming, Complete). Click a column heading to sort. 50 employees per page. | Click a name to open that employee's training history. |
+| Exceptions | Problems that need a person to decide, such as duplicate emails, payroll numbers bound to another employee, failed certificate renders or failed event deliveries. Repeats are counted on one row. **Show resolved too** includes handled ones. | **Mark as resolved** once handled. |
+| Blocked resets | Cycles whose evidence snapshot or reset failed, with the reason. | **Retry reset** runs the snapshot and reset again. |
 
-Click **Show archived** below the table to include archived cycles and resolved exceptions.
+**Employee training history.** The employee's details (with a link to their Moodle profile), then every cycle, newest
+first: year, Cycle ID, status, due date, access end, completion date, approved time, certificate code (links to the
+verification page) and the evidence kept (before each reset and at completion, with its verification status and a
+**Certificate PDF** link). **Back** returns to the list with your search kept.
 
-**CSV export.** Above the table, type an AlayaCare ID, payroll number, HCA number, Cycle ID or certificate code (or
-leave it empty for everything) and click **Export CSV**. The file is named `caregiver-training-YYYYMMDD-HHMMSS.csv` and
-has one row per snapshot, with times in the compliance timezone. Each export is logged.
+Row actions are in the **⋮** menu at the end of each row, and each asks for confirmation first. **Archive** marks a
+completed cycle as archived: it stays in the history with an "Archived" label and stops showing in the learner's
+banner. Nothing is deleted.
+
+**Downloading.** Below the employee list, **Download training history as** downloads the full history of the
+employees currently listed (respecting your search and status filter); on an employee's page it downloads that
+employee's history. Choose CSV, Excel, ODS, PDF, HTML or JSON. The file is named `caregiver-training-YYYYMMDD-HHMMSS`,
+has plain-language headers and one row per cycle, grouped by employee with the newest cycle first. Dates are
+`YYYY-MM-DD` (completion `YYYY-MM-DD HH:MM`) in the compliance timezone, approved time is in hours, and Yes/No values
+are words. The evidence for each cycle is summarised in one cell, for example "At completion, 2026-03-05 (verified);
+Before the yearly reset, 2027-01-20 (verified)". Each download is logged.
 
 ## Emails
 
-| Email | When | Default |
-| --- | --- | --- |
-| Account activation | When the adapter provisions a learner and asks for an activation email. | Sent when requested, unless the learner has already logged in |
-| Window open | When the cycle opens. | On |
-| Reminder | The configured number of days before the due date. | Off (no offsets) |
-| Due today | On the due date. | Off |
-| Overdue | After the due date, if not complete. | Off |
-| Completion | When the cycle completes, with the certificate code, link and image. | On |
+| Email | When | Button | Default |
+| --- | --- | --- | --- |
+| Account setup | When the adapter creates a caregiver account and asks for an activation email. | Set Your Password | Sent when requested, unless the learner has already logged in |
+| Training is open | When the cycle opens, 60 days before the due date. | Continue Training | On |
+| Reminder | The configured number of days before the due date, for example 30 and 14. | Continue Training | Off (no days set) |
+| Due today | On the due date. | Continue Training | Off |
+| Overdue | Once after the due date, if not complete. | Continue Training | Off |
+| Completed | When the cycle completes, with the certificate PDF attached. | View Certificate | On |
 
 Emails are sent by the "Send caregiver training notifications" task, so they can take up to 30 minutes to arrive.
-Each one is sent only once per cycle. HR copies are marked "[Copy]" and name the learner they were sent to.
+Each one is sent only once per cycle. HR copies carry a banner naming the learner they were sent to.
+
+Each email has one button, for its main link. Where the message mentions that link (for example "Start your
+training here: {courseurl}"), the button appears in that spot; other links, such as the login page, stay plain
+links. Edit the wording under **Email templates**; the account setup email is there too.
+
+All emails end with the same footer: the Quick Start Guide link, HR Compliance's phone number and email, and the
+platform support email. The phone number can be tapped to call and the addresses open a new email. Change them once
+under **Notifications → Email footer**; the Quick Start Guide line only appears once its link is set.
 
 Moodle's own course welcome email ("you are enrolled in the course …") comes from the course's manual enrolment
 settings, not from this plugin. To turn it off, go to the course's **Participants → Enrolment methods**, edit
@@ -303,7 +332,7 @@ settings, not from this plugin. To turn it off, go to the course's **Participant
 
 ### Placeholders
 
-You can use these in the subject and body settings:
+You can use these in the subject and message settings:
 
 | Placeholder | Replaced with |
 | --- | --- |
@@ -313,6 +342,9 @@ You can use these in the subject and body settings:
 | `{cycleid}` | The Cycle ID. |
 | `{certificatecode}` | The certificate code (completion only). |
 | `{certificateurl}` | The certificate: the public PDF when S3 storage is set, otherwise the certificate activity. |
+| `{loginurl}` | The login page. |
+| `{quickstartguideurl}` | The Quick Start Guide link from the email footer settings. |
+| `{username}`, `{expiry}`, `{link}` | Account setup only: the username, how long the link lasts, and the set-password link. |
 
 ## Scheduled tasks
 
@@ -347,12 +379,12 @@ Run these on the server from the Moodle folder.
 
 **The banner or Next activity button doesn't appear.**
 The learner has no open or completed cycle in the configured course, or you're looking at a different course. Check
-the Current cycles tab, and check that the Annual course ID setting is that course. The button also never appears on
-the course page or the last activity.
+**Training records**, and check that the **Annual training course** setting is that course. The button also never
+appears on the course page or the last activity.
 
 **The learner finished everything but isn't marked complete.**
 Look up their cycle with the adapter's `GET /v1/cycles/{cycleid}`, or in the CSV export, and check the gates. The
-most common causes are time still short of the requirement, the Time policy still Unresolved, or course completion
+most common causes are time still short of the requirement, **How time is counted** still **Not decided yet**, or course completion
 not yet calculated. Run "Calculate regular completion data" and then "Start due caregiver cycles and reconcile
 completion".
 

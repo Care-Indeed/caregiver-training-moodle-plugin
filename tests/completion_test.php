@@ -143,7 +143,7 @@ final class completion_test extends \advanced_testcase {
             $body = quoted_printable_decode($message->body);
             $this->assertStringContainsString('/mod/customcert/view.php', $body);
             $this->assertStringContainsString(
-                'filename=certificate-' . $cycle->certificatecode . '.png',
+                'filename=certificate-' . $cycle->certificatecode . '.pdf',
                 $message->body,
                 'still attached'
             );
@@ -167,6 +167,45 @@ final class completion_test extends \advanced_testcase {
         $gates = completion_manager::check_gates($cycle);
         $this->assertContains('course_not_complete', $gates['reasons']);
         $this->assertContains('time_requirement_not_met', $gates['reasons']);
+    }
+
+    public function test_no_minimum_time_completes_on_course_completion_alone(): void {
+        // HR's rule: finishing the course (lessons' own time requirements and the passing grade) is enough.
+        set_config('timepolicy', config::POLICY_TRACKED, 'local_caregivertraining');
+        set_config('requiredseconds', 0, 'local_caregivertraining');
+        $cycle = cycle_manager::get('C-1');
+        $this->assertSame(['course_not_complete'], completion_manager::check_gates($cycle)['reasons']);
+
+        $this->gen->create_evidence($this->fixture, (int) $this->learner->user->id);
+        $this->assertTrue(completion_manager::evaluate((int) $cycle->id));
+        $cycle = cycle_manager::get('C-1');
+        $this->assertSame('completed', $cycle->status);
+        $this->assertEquals(0, $cycle->approvedseconds, 'no tracked time was needed');
+    }
+
+    public function test_email_templates_saved_in_settings_are_sent(): void {
+        global $CFG;
+        require_once($CFG->libdir . '/adminlib.php');
+        admin_get_root(true, true);
+        $prefix = 's_local_caregivertraining_template_';
+        admin_write_settings((object) [
+            $prefix . 'subject_completion' => 'Well done {firstname}',
+            $prefix . 'body_completion' => 'Your code is {certificatecode}.',
+            $prefix . 'subject_windowopen' => '',
+        ]);
+        $this->assertSame(
+            get_string('default_subject_windowopen', 'local_caregivertraining'),
+            config::template('windowopen', 'subject'),
+            'an emptied template falls back to the default wording'
+        );
+
+        [$cycle, $sink] = $this->complete_and_email();
+        $learner = array_values(array_filter($sink->get_messages(), fn($m) => $m->to === $this->learner->user->email))[0];
+        $this->assertSame('Well done ' . $this->learner->user->firstname, $learner->subject);
+        $this->assertStringContainsString(
+            'Your code is ' . $cycle->certificatecode . '.',
+            quoted_printable_decode($learner->body)
+        );
     }
 
     public function test_completion_issues_exactly_one_certificate_event_and_email(): void {
@@ -223,13 +262,17 @@ final class completion_test extends \advanced_testcase {
         foreach ($sink->get_messages() as $message) {
             $body = quoted_printable_decode($message->body);
             $this->assertStringContainsString(
-                'filename=certificate-' . $cycle->certificatecode . '.png',
+                'filename=certificate-' . $cycle->certificatecode . '.pdf',
                 $message->body,
-                'certificate PNG attached'
+                'certificate PDF attached'
             );
-            $this->assertStringContainsString('Content-Type: image/png', $message->body);
+            $this->assertStringContainsString('Content-Type: application/pdf', $message->body);
             $this->assertStringNotContainsString('downloadown', $body, 'emailed links cannot download directly');
-            $this->assertStringContainsString(get_string('email_heading_completion', 'local_caregivertraining'), $body);
+            $this->assertStringContainsString(get_string('default_subject_completion', 'local_caregivertraining'), $body);
+            $this->assertStringContainsString(get_string('email_cta_completion', 'local_caregivertraining'), $body);
+            $this->assertStringContainsString('href="tel:+16502788013"', $body, 'shared footer');
+            $this->assertStringContainsString('href="mailto:HRCompliance@careindeed.com"', $body);
+            $this->assertStringContainsString('href="mailto:systemadmin@ci-ion.com"', $body);
             $this->assertSame(
                 $message->to === 'hr@example.com',
                 str_contains($body, 'HR copy of the email sent to'),

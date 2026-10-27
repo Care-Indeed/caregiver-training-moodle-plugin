@@ -53,8 +53,8 @@ pnpm run local:test:setup
 pnpm run local:test
 ```
 
-`amd/build/tracker.min.js` is hand-written. Before release, rebuild it with `grunt amd` in a Moodle development
-checkout.
+`amd/build` is built with Moodle 5.1's Grunt. After editing `amd/src`, run `npx grunt amd` from the plugin directory in a Moodle development
+checkout and commit the build; CI fails when it is stale.
 
 ## License
 

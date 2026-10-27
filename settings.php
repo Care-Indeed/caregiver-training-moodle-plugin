@@ -15,7 +15,9 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Admin settings and the administrator view link.
+ * Admin settings pages and the training records page, in one category like other Moodle plugins.
+ *
+ * Setting names are unchanged from the original single page, so saved values carry over.
  *
  * @package    local_caregivertraining
  * @copyright  2026 CI Institute of Nursing
@@ -24,10 +26,14 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$component = 'local_caregivertraining';
+use local_caregivertraining\local\admin_setup;
 
-$ADMIN->add('localplugins', new admin_category('local_caregivertraining_category', get_string('pluginname', $component)));
-$ADMIN->add('local_caregivertraining_category', new admin_externalpage(
+$component = 'local_caregivertraining';
+$category = 'local_caregivertraining_category';
+
+$ADMIN->add('localplugins', new admin_category($category, get_string('pluginname', $component)));
+// The page HR uses most comes first; HR can open it without site configuration rights.
+$ADMIN->add($category, new admin_externalpage(
     'local_caregivertraining_view',
     get_string('adminview', $component),
     new moodle_url('/local/caregivertraining/index.php'),
@@ -35,224 +41,275 @@ $ADMIN->add('local_caregivertraining_category', new admin_externalpage(
 ));
 
 if ($hassiteconfig) {
-    $settings = new admin_settingpage('local_caregivertraining', get_string('settings'));
+    // Live summaries (setup warnings, certificate design, activity lists) need course and module info, which Moodle
+    // refuses to build while an upgrade saves new setting defaults.
+    $fulltree = $ADMIN->fulltree && empty($CFG->upgraderunning) && !during_initial_install();
+    $str = fn(string $key, $a = null) => get_string($key, $component, $a);
+    $env = fn(string $variable) => $fulltree ? admin_setup::env_note($variable) : '';
+    $pages = [];
+    foreach (admin_setup::PAGES as $name) {
+        $pages[$name] = new admin_settingpage($name, $str('page_' . $name));
+    }
 
-    $settings->add(new admin_setting_heading(
-        "{$component}/course",
-        get_string('settings_course', $component),
-        get_string('settings_course_desc', $component)
-    ));
-    $settings->add(new admin_setting_configtext(
+    // General settings.
+    $page = $pages['local_caregivertraining'];
+    if ($fulltree && ($warnings = admin_setup::setup_warnings())) {
+        $page->add(new admin_setting_heading("{$component}/setupwarnings", '', $warnings));
+    }
+    $page->add(new admin_setting_configselect_autocomplete(
         "{$component}/courseid",
-        get_string('courseid', $component),
-        get_string('courseid_desc', $component),
+        $str('courseid'),
+        $str('courseid_desc'),
         0,
-        PARAM_INT
+        fn() => admin_setup::course_choices()
     ));
-    $settings->add(new admin_setting_configtext(
+    $page->add(new admin_setting_configselect(
         "{$component}/roleid",
-        get_string('roleid', $component),
-        get_string('roleid_desc', $component),
+        $str('roleid'),
+        $str('roleid_desc'),
         0,
+        fn() => admin_setup::role_choices()
+    ));
+    $page->add(new admin_setting_configselect(
+        "{$component}/compliancetimezone",
+        $str('compliancetimezone'),
+        $str('compliancetimezone_desc'),
+        'America/Los_Angeles',
+        fn() => core_date::get_list_of_timezones(get_config($component, 'compliancetimezone') ?: null)
+    ));
+    $page->add(new admin_setting_configtext(
+        "{$component}/retentionyears",
+        $str('retentionyears'),
+        $str('retentionyears_desc'),
+        3,
         PARAM_INT
     ));
-    $settings->add(new admin_setting_configtext(
+    $page->add(new admin_setting_heading("{$component}/certificate", $str('settings_certificate'), ''));
+    $page->add(new \local_caregivertraining\admin\setting_certificate(
         "{$component}/certificatecmid",
-        get_string('certificatecmid', $component),
-        get_string('certificatecmid_desc', $component),
+        $str('certificatecmid'),
+        $str('certificatecmid_desc'),
         0,
-        PARAM_INT
+        fn() => admin_setup::certificate_choices()
     ));
-    $design = $ADMIN->fulltree ? \local_caregivertraining\local\certificate::design() : null;
-    $settings->add(new admin_setting_configtext(
+    $design = $fulltree ? \local_caregivertraining\local\certificate::design() : null;
+    $page->add(new admin_setting_configtext(
         "{$component}/certificatefingerprint",
-        get_string('certificatefingerprint', $component),
-        get_string('certificatefingerprint_desc', $component, [
+        $str('certificatefingerprint'),
+        $str('certificatefingerprint_desc', [
             'name' => $design['name'] ?? '',
             'fingerprint' => $design['fingerprint'] ?? '',
             'problems' => $design && $design['problems'] ? implode(', ', $design['problems']) : '-',
-        ]),
+        ]) . $env('CAREGIVERTRAINING_CERTIFICATE_FINGERPRINT'),
         '',
         PARAM_ALPHANUM
     ));
-    $settings->add(new admin_setting_configtext(
-        "{$component}/compliancetimezone",
-        get_string('compliancetimezone', $component),
-        get_string('compliancetimezone_desc', $component),
-        'America/Los_Angeles',
-        PARAM_TIMEZONE
-    ));
 
-    $settings->add(new admin_setting_heading(
-        "{$component}/time",
-        get_string('settings_time', $component),
-        get_string('settings_time_desc', $component)
-    ));
-    $settings->add(new admin_setting_configselect(
+    // Training time.
+    $page = $pages['local_caregivertraining_time'];
+    $page->add(new admin_setting_heading("{$component}/time", '', $str('settings_time_desc')));
+    $page->add(new admin_setting_configselect(
         "{$component}/timepolicy",
-        get_string('timepolicy', $component),
-        get_string('timepolicy_desc', $component),
+        $str('timepolicy'),
+        $str('timepolicy_desc'),
         'unresolved',
         [
-            'unresolved' => get_string('timepolicy_unresolved', $component),
-            'tracked' => get_string('timepolicy_tracked', $component),
-            'nominal' => get_string('timepolicy_nominal', $component),
+            'unresolved' => $str('timepolicy_unresolved'),
+            'tracked' => $str('timepolicy_tracked'),
+            'nominal' => $str('timepolicy_nominal'),
         ]
     ));
-    $settings->add(new admin_setting_configtext(
+    $page->add(new admin_setting_configduration(
         "{$component}/requiredseconds",
-        get_string('requiredseconds', $component),
-        get_string('requiredseconds_desc', $component),
+        $str('requiredseconds'),
+        $str('requiredseconds_desc'),
         18000,
-        PARAM_INT
+        HOURSECS
     ));
-    $settings->add(new admin_setting_configtext(
-        "{$component}/countablecmids",
-        get_string('countablecmids', $component),
-        get_string('countablecmids_desc', $component),
-        '',
-        PARAM_SEQUENCE
-    ));
-    $settings->add(new admin_setting_configcheckbox(
+    $page->add(new admin_setting_configcheckbox(
         "{$component}/countallactivities",
-        get_string('countallactivities', $component),
-        get_string('countallactivities_desc', $component),
+        $str('countallactivities'),
+        $str('countallactivities_desc'),
         0
     ));
-    $settings->add(new admin_setting_configmultiselect_modules(
-        "{$component}/excludedmodules",
-        get_string('excludedmodules', $component),
-        get_string('excludedmodules_desc', $component)
+    $page->add(new admin_setting_configmultiselect(
+        "{$component}/countablecmids",
+        $str('countablecmids'),
+        $str('countablecmids_desc'),
+        [],
+        fn() => admin_setup::activity_choices()
     ));
-    $settings->hide_if("{$component}/countablecmids", "{$component}/countallactivities", 'checked');
-    $settings->hide_if("{$component}/excludedmodules", "{$component}/countallactivities", 'notchecked');
-    $settings->add(new admin_setting_configtextarea(
+    $page->add(new admin_setting_configmultiselect_modules(
+        "{$component}/excludedmodules",
+        $str('excludedmodules'),
+        $str('excludedmodules_desc')
+    ));
+    $page->add(new admin_setting_configtextarea(
         "{$component}/nominaldurations",
-        get_string('nominaldurations', $component),
-        get_string('nominaldurations_desc', $component),
+        $str('nominaldurations'),
+        $str('nominaldurations_desc') . ($fulltree ? admin_setup::activity_id_list() : ''),
         '{}',
         PARAM_RAW
     ));
-    $settings->add(new admin_setting_configtext(
+    $page->add(new admin_setting_configduration(
         "{$component}/heartbeatseconds",
-        get_string('heartbeatseconds', $component),
-        get_string('heartbeatseconds_desc', $component),
+        $str('heartbeatseconds'),
+        $str('heartbeatseconds_desc'),
         30,
-        PARAM_INT
+        1
     ));
-    $settings->add(new admin_setting_configtext(
+    $page->add(new admin_setting_configduration(
         "{$component}/idleseconds",
-        get_string('idleseconds', $component),
-        get_string('idleseconds_desc', $component),
+        $str('idleseconds'),
+        $str('idleseconds_desc'),
         120,
-        PARAM_INT
+        MINSECS
     ));
+    foreach (['requiredseconds', 'countallactivities', 'countablecmids', 'excludedmodules', 'nominaldurations'] as $name) {
+        $page->hide_if("{$component}/{$name}", "{$component}/timepolicy", 'eq', 'unresolved');
+    }
+    $page->hide_if("{$component}/nominaldurations", "{$component}/timepolicy", 'neq', 'nominal');
+    // Check-ins only matter when time actually spent is counted.
+    foreach (['heartbeatseconds', 'idleseconds'] as $name) {
+        $page->hide_if("{$component}/{$name}", "{$component}/timepolicy", 'neq', 'tracked');
+    }
+    $page->hide_if("{$component}/countablecmids", "{$component}/countallactivities", 'checked');
+    $page->hide_if("{$component}/excludedmodules", "{$component}/countallactivities", 'notchecked');
 
-    $settings->add(new admin_setting_heading(
-        "{$component}/notifications",
-        get_string('settings_notifications', $component),
-        get_string('settings_notifications_desc', $component)
-    ));
+    // Notifications: which emails are sent, and to whom.
+    $page = $pages['local_caregivertraining_notifications'];
     $defaults = ['windowopen' => 1, 'completion' => 1, 'due' => 0, 'overdue' => 0];
-    foreach ($defaults as $type => $default) {
-        $settings->add(new admin_setting_configcheckbox(
+    foreach (['windowopen', 'due', 'overdue', 'completion'] as $type) {
+        $page->add(new admin_setting_configcheckbox(
             "{$component}/notify_{$type}",
-            get_string("notify_{$type}", $component),
-            '',
-            $default
+            $str("notify_{$type}"),
+            $str("notify_{$type}_desc"),
+            $defaults[$type]
         ));
     }
-    $settings->add(new admin_setting_configtext(
+    $page->add(new admin_setting_configtext(
         "{$component}/reminderoffsets",
-        get_string('reminderoffsets', $component),
-        get_string('reminderoffsets_desc', $component),
+        $str('reminderoffsets'),
+        $str('reminderoffsets_desc'),
         '',
         PARAM_SEQUENCE
     ));
-    $settings->add(new admin_setting_configtext(
+    $page->add(new admin_setting_configtext(
         "{$component}/hrccemails",
-        get_string('hrccemails', $component),
-        get_string('hrccemails_desc', $component),
+        $str('hrccemails'),
+        $str('hrccemails_desc'),
         '',
         PARAM_RAW
     ));
-    foreach (['windowopen', 'reminder', 'due', 'overdue', 'completion'] as $type) {
-        $label = get_string("type_{$type}", $component);
-        $settings->add(new admin_setting_configtext(
+    // Contacts in the footer every email shares.
+    $page->add(new admin_setting_heading(
+        "{$component}/emailfooter",
+        $str('settings_emailfooter'),
+        $str('settings_emailfooter_desc')
+    ));
+    $page->add(new admin_setting_configtext(
+        "{$component}/quickstartguideurl",
+        $str('quickstartguideurl'),
+        $str('quickstartguideurl_desc'),
+        '',
+        PARAM_URL
+    ));
+    $page->add(new admin_setting_configtext(
+        "{$component}/hrphone",
+        $str('hrphone'),
+        $str('hrphone_desc'),
+        '(650) 278-8013',
+        PARAM_TEXT
+    ));
+    $page->add(new admin_setting_configtext(
+        "{$component}/hremail",
+        $str('hremail'),
+        '',
+        'HRCompliance@careindeed.com',
+        PARAM_EMAIL
+    ));
+    $page->add(new admin_setting_configtext(
+        "{$component}/supportemail",
+        $str('supportemail'),
+        '',
+        'systemadmin@ci-ion.com',
+        PARAM_EMAIL
+    ));
+
+    // Email templates: the wording of each email.
+    $page = $pages['local_caregivertraining_templates'];
+    $page->add(new admin_setting_heading("{$component}/templates", '', $str('template_desc')));
+    foreach (['activation', 'windowopen', 'reminder', 'due', 'overdue', 'completion'] as $type) {
+        $page->add(new admin_setting_heading("{$component}/email_{$type}", $str("type_{$type}"), ''));
+        // The default wording is the setting default, so Moodle shows it and an emptied field still falls back to it.
+        $page->add(new admin_setting_configtext(
             "{$component}/template_subject_{$type}",
-            get_string('template_subject', $component, $label),
-            get_string('template_desc', $component),
+            $str('template_subject'),
             '',
+            $str("default_subject_{$type}"),
             PARAM_TEXT
         ));
-        $settings->add(new admin_setting_configtextarea(
+        $page->add(new admin_setting_configtextarea(
             "{$component}/template_body_{$type}",
-            get_string('template_body', $component, $label),
-            get_string('template_desc', $component),
+            $str('template_body'),
             '',
+            $str("default_body_{$type}"),
             PARAM_RAW
         ));
     }
 
-    $settings->add(new admin_setting_heading(
-        "{$component}/storage",
-        get_string('settings_storage', $component),
-        get_string('settings_storage_desc', $component)
-    ));
-    foreach (['s3bucket', 's3region', 's3endpoint', 's3publicurl', 's3prefix', 's3accesskey'] as $name) {
-        $settings->add(new admin_setting_configtext(
+    // Certificate storage.
+    $page = $pages['local_caregivertraining_storage'];
+    $page->add(new admin_setting_heading("{$component}/storage", '', $str('settings_storage_desc')));
+    $s3 = ['s3bucket' => ['BUCKET', ''], 's3region' => ['REGION', 'us-west-1'], 's3endpoint' => ['ENDPOINT', ''],
+        's3publicurl' => ['PUBLIC_URL', ''], 's3prefix' => ['PREFIX', 'certificates/'], 's3accesskey' => ['ACCESS_KEY', '']];
+    foreach ($s3 as $name => [$suffix, $default]) {
+        $page->add(new admin_setting_configtext(
             "{$component}/{$name}",
-            get_string($name, $component),
-            get_string("{$name}_desc", $component),
-            '',
+            $str($name),
+            $str("{$name}_desc") . $env('CAREGIVERTRAINING_S3_' . $suffix),
+            $default,
             PARAM_RAW_TRIMMED
         ));
     }
-    $settings->add(new admin_setting_configpasswordunmask(
+    $page->add(new admin_setting_configpasswordunmask(
         "{$component}/s3secretkey",
-        get_string('s3secretkey', $component),
-        get_string('s3secretkey_desc', $component),
+        $str('s3secretkey'),
+        $str('s3secretkey_desc') . $env('CAREGIVERTRAINING_S3_SECRET_KEY'),
         ''
     ));
 
-    $settings->add(new admin_setting_heading(
-        "{$component}/adapter",
-        get_string('settings_adapter', $component),
-        get_string('settings_adapter_desc', $component)
-    ));
-    $settings->add(new admin_setting_configcheckbox(
+    // AlayaCare integration.
+    $page = $pages['local_caregivertraining_integration'];
+    $page->add(new admin_setting_heading("{$component}/adapter", '', $str('settings_adapter_desc')));
+    $page->add(new admin_setting_configcheckbox(
         "{$component}/adapterenabled",
-        get_string('adapterenabled', $component),
-        '',
+        $str('adapterenabled'),
+        $str('adapterenabled_desc') . $env('CAREGIVERTRAINING_ADAPTER_ENABLED'),
         0
     ));
-    $settings->add(new admin_setting_configtext(
+    $page->add(new admin_setting_configtext(
         "{$component}/adapterurl",
-        get_string('adapterurl', $component),
-        get_string('adapterurl_desc', $component),
+        $str('adapterurl'),
+        $str('adapterurl_desc') . $env('CAREGIVERTRAINING_ADAPTER_URL'),
         '',
         PARAM_URL
     ));
-    $settings->add(new admin_setting_configpasswordunmask(
+    $page->add(new admin_setting_configpasswordunmask(
         "{$component}/adaptersecret",
-        get_string('adaptersecret', $component),
-        '',
+        $str('adaptersecret'),
+        $str('adaptersecret_desc') . $env('CAREGIVERTRAINING_ADAPTER_SECRET'),
         ''
     ));
-    $settings->add(new admin_setting_configtext(
+    $page->add(new admin_setting_configtext(
         "{$component}/maxattempts",
-        get_string('maxattempts', $component),
-        '',
+        $str('maxattempts'),
+        $str('maxattempts_desc'),
         20,
         PARAM_INT
     ));
-    $settings->add(new admin_setting_configtext(
-        "{$component}/retentionyears",
-        get_string('retentionyears', $component),
-        get_string('retentionyears_desc', $component),
-        3,
-        PARAM_INT
-    ));
 
-    $ADMIN->add('local_caregivertraining_category', $settings);
+    foreach ($pages as $page) {
+        $ADMIN->add($category, $page);
+    }
 }

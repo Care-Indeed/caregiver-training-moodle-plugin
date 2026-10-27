@@ -634,6 +634,19 @@ class cycle_manager {
     }
 
     /**
+     * Plain-language status for reports: the compliance state, or "Blocked" while a reset is blocked.
+     *
+     * @param \stdClass $cycle
+     * @return string
+     */
+    public static function status_label(\stdClass $cycle): string {
+        if ($cycle->status === 'blocked') {
+            return get_string('status_blocked', config::COMPONENT);
+        }
+        return get_string('compliance_' . self::compliance($cycle), config::COMPONENT);
+    }
+
+    /**
      * Export for API responses and CSV.
      *
      * @param \stdClass $cycle

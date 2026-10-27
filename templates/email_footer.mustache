@@ -1,0 +1,49 @@
+{{!
+    This file is part of Moodle - http://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template local_caregivertraining/email_footer
+
+    Footer shared by every caregiver training email: the Quick Start Guide, HR Compliance and platform support
+    contacts. Edit it here (and the contact settings) to change all emails at once. Inline styles only.
+
+    Context variables required for this template:
+    * guide - heading, text and url of the Quick Start Guide (optional)
+    * hr - heading, label, phone, tel (tel: link), separator, email of HR Compliance (optional)
+    * support - heading, label and email of platform support (optional)
+
+    Example context (json):
+    {
+        "guide": {"heading": "Need a hand?", "text": "Our Quick Start Guide walks you through it:",
+            "url": "https://example.com/guide"},
+        "hr": {"heading": "Questions about your training or due date?", "label": "HR Compliance:",
+            "phone": "(650) 278-8013", "tel": "tel:+16502788013", "separator": true,
+            "email": "HRCompliance@careindeed.com"},
+        "support": {"heading": "Trouble logging in or using the platform?", "label": "CI-ION Systems:",
+            "email": "systemadmin@ci-ion.com"}
+    }
+}}
+<div style="border-top:1px solid #E1DDDD;padding-top:16px;font-size:13px;line-height:1.6;color:#544B4B;">
+    {{#guide}}
+    <p style="margin:0 0 12px 0;"><strong style="color:#1B1818;">{{heading}}</strong><br>{{text}} <a href="{{url}}" target="_blank" style="color:#B11517;">{{url}}</a></p>
+    {{/guide}}
+    {{#hr}}
+    <p style="margin:0 0 12px 0;"><strong style="color:#1B1818;">{{heading}}</strong><br>{{label}} {{#phone}}<a href="{{tel}}" style="color:#B11517;text-decoration:none;">{{phone}}</a>{{/phone}}{{#separator}} | {{/separator}}{{#email}}<a href="mailto:{{email}}" style="color:#B11517;">{{email}}</a>{{/email}}</p>
+    {{/hr}}
+    {{#support}}
+    <p style="margin:0;"><strong style="color:#1B1818;">{{heading}}</strong><br>{{label}} <a href="mailto:{{email}}" style="color:#B11517;">{{email}}</a></p>
+    {{/support}}
+</div>
