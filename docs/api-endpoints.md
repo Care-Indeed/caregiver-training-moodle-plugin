@@ -840,65 +840,72 @@ Body:
 These pages use the logged-in user's Moodle session, not a web service token. Every state-changing request requires
 the session key (`sesskey`).
 
-### `index.php`: administrator view
+### `index.php`: Training records page
 
 ```text
-GET  /local/caregivertraining/index.php?tab={tab}&showarchived={0|1}
-POST /local/caregivertraining/index.php?tab={tab}&action={action}&id={id}&sesskey={sesskey}
+GET  /local/caregivertraining/index.php?search={text}&status={status}&page={n}&tsort={column}&tdir={3|4}
+GET  /local/caregivertraining/index.php?employee={bindingid}
+GET  /local/caregivertraining/index.php?view={exceptions|blocked}&showresolved={0|1}
+GET  /local/caregivertraining/index.php?...&action={action}&id={id}
+GET  /local/caregivertraining/index.php?...&action={action}&id={id}&confirm=1&sesskey={sesskey}
 ```
 
-Also reachable from Site administration as the plugin's report page. Viewing requires
+The first entry in **Site administration → Plugins → Local plugins → Caregiver annual training**. Viewing requires
 `local/caregivertraining:viewreports`.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
-| `tab` | string | `exceptions` | `exceptions`, `blocked`, `cycles` or `snapshots`. |
-| `showarchived` | bool | `0` | Include archived cycles and resolved exceptions. |
-| `action` | string | none | `retry`, `archive` or `resolve`. Requires `id` and `sesskey`. |
+| `view` | string | `employees` | `employees`, `exceptions` or `blocked`. The old `tab` parameter is still accepted; its `cycles` and `snapshots` values open `employees`. |
+| `search` | string | empty | Employees: partial, case-insensitive match on name, AlayaCare id, payroll number, HCA number, or any of the employee's Cycle IDs or certificate codes. |
+| `status` | string | empty | Employees: `open`, `overdue`, `upcoming` or `complete`, matched against each employee's latest cycle. |
+| `page`, `tsort`, `tdir` | | | Employees: Moodle table paging (50 per page) and sorting. |
+| `employee` | int | none | Binding id; shows that employee's full training history. |
+| `showresolved` | bool | `0` | Exceptions: include resolved exceptions. `showarchived` is still accepted. |
+| `action` | string | none | `retry`, `archive` or `resolve`, with `id`. Without `confirm`, shows a confirmation page. |
 | `id` | int | none | Local cycle id for `retry` and `archive`, exception id for `resolve`. |
+| `confirm` | bool | `0` | With `sesskey`, carries out the action. |
 
-Tabs (each shows up to 500 rows):
-
-| Tab | Shows | Action |
+| View | Shows | Action |
 | --- | --- | --- |
-| `exceptions` | Open identity and cycle exceptions: type, occurrence count, AlayaCare id, details. | `resolve`: mark the exception resolved. |
+| `employees` | One row per employee with their latest non-superseded cycle, its status, due date and completion, and a cycle count. With `employee`, every non-superseded cycle for that employee with its evidence snapshots (type, date, verification, certificate PDF links). | `archive` (on an employee's history): mark a completed cycle archived; it stays listed with an "Archived" label and is no longer used for the learner's banner. Nothing is deleted. |
+| `exceptions` | Open (or all) identity and cycle exceptions, up to 500: type, occurrence count, AlayaCare id, details, last update. | `resolve`: mark the exception resolved. |
 | `blocked` | Cycles whose snapshot or reset failed, with the reason. | `retry`: run the snapshot and reset again. |
-| `cycles` | All cycles except superseded ones, with employee fields, status, compliance, due (anniversary) date, access end date, approved time and certificate code. | `archive`: hide a completed cycle from default views. Nothing is deleted. |
-| `snapshots` | Evidence snapshots: type, creation time, verification, hash and certificate links. | None. |
 
 All three actions require `local/caregivertraining:managecycles`. `archive` only accepts completed or superseded
-cycles and fails with `cycleconflict` otherwise. After an action, the page redirects back to the same tab. `retry`
-shows the resulting status, plus the blocked reason if it failed again.
+cycles and fails with `cycleconflict` otherwise. After an action, the page returns to where it was with a success
+or error message; a failed `retry` shows the blocked reason.
 
 Each action triggers a Moodle event: `cycle_retried`, `cycle_archived` or `exception_resolved`.
 
-### `export.php`: CSV evidence export
+### `export.php`: training history download
 
 ```text
-POST /local/caregivertraining/export.php
-sesskey={sesskey}&filter={filter}
+GET /local/caregivertraining/export.php?dataformat={format}&search={text}&status={status}&sesskey={sesskey}
+GET /local/caregivertraining/export.php?dataformat={format}&employee={bindingid}&sesskey={sesskey}
 ```
 
-Requires `local/caregivertraining:export`. The administrator view has a form for it.
+Requires `local/caregivertraining:export`. The Training records page links to it with Moodle's **Download** selector.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `sesskey` | string | yes | Session key. |
-| `filter` | string | no | Exact match on AlayaCare id, payroll number, HCA number, Cycle ID or certificate code. Empty exports everything. |
+| `dataformat` | string | no | Any enabled Moodle data format: `csv` (default), `excel`, `ods`, `pdf`, `html`, `json`. |
+| `search`, `status` | string | no | Same filters as the employee list; every cycle of each matching employee is exported. `filter` is accepted as an alias of `search`. Empty exports everyone. |
+| `employee` | int | no | Binding id; exports only that employee's history and ignores `search` and `status`. |
 
-Returns a CSV download named `caregiver-training-{YYYYMMDD-HHMMSS}.csv`. There is one row per snapshot, or one row
-for a cycle without snapshots. Columns:
+Returns a download named `caregiver-training-{YYYYMMDD-HHMMSS}` with one row per non-superseded cycle, ordered by
+employee name and then newest cycle first. Columns:
 
 ```text
-alayacareid, payrollnumber, hcanumber, registrationdate, moodleuserid, fullname,
-cycleid, status, compliance, hiredate, anniversarydate, accessenddate, timecompleted, approvedseconds,
-timepolicy, certificatecode, resetstate, archived, snapshotid, snapshottype, snapshotverified,
-snapshotsha256, snapshotcreated, snapshotretainuntil, snapshotcounts, certificatefiles
+Employee name,AlayaCare ID,Payroll number,HCA number,HCA registration date,Training year,Cycle ID,Status,Hire date,Due date (anniversary),Access ends,Completed on,Completed on time,Approved training hours,Certificate code,Certificate verification link,Evidence kept,Archived
 ```
 
-- Times are ISO 8601 in the compliance timezone, and `snapshotretainuntil` is a date.
-- `certificatefiles` lists `code:pdfsha256` pairs separated by spaces.
-- Each export triggers an `evidence_exported` event recording the filter and row count.
+- **Status** is Open, Overdue, Upcoming, Complete or "Blocked (reset failed)".
+- Dates are `YYYY-MM-DD`; **Completed on** is `YYYY-MM-DD HH:MM`; both are in the compliance timezone.
+- **Completed on**, **Completed on time** and **Approved training hours** (decimal hours, e.g. `5.00`) are empty
+  until the cycle is complete. **Completed on time** and **Archived** are Yes or No.
+- **Evidence kept** lists the cycle's snapshots separated by `; `, e.g. `At completion, 2026-03-05 (verified)`.
+- Each download triggers an `evidence_exported` event recording the filter and row count.
 
 ### `next.php`: next activity
 

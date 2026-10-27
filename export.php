@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * CSV export of cycles and snapshots.
+ * Training history download in any enabled data format (CSV, Excel, PDF...).
  *
  * @package    local_caregivertraining
  * @copyright  2026 CI Institute of Nursing
@@ -31,12 +31,16 @@ $context = context_system::instance();
 require_capability('local/caregivertraining:export', $context);
 require_sesskey();
 
-$filter = optional_param('filter', '', PARAM_RAW_TRIMMED);
-$rows = export::rows($filter);
+$dataformat = optional_param('dataformat', 'csv', PARAM_ALPHA);
+// The older form posted "filter"; it is a search like the one on the Training records page.
+$search = optional_param('search', optional_param('filter', '', PARAM_RAW_TRIMMED), PARAM_RAW_TRIMMED);
+$status = optional_param('status', '', PARAM_ALPHA);
+$employee = optional_param('employee', 0, PARAM_INT);
+$rows = export::rows($search, $status, $employee);
 
 \local_caregivertraining\event\evidence_exported::create([
     'context' => $context,
-    'other' => ['filter' => $filter, 'rows' => count($rows)],
+    'other' => ['filter' => $employee ? "employee:{$employee}" : trim("{$search} {$status}"), 'rows' => count($rows)],
 ])->trigger();
 
-\core\dataformat::download_data('caregiver-training-' . date('Ymd-His'), 'csv', export::columns(), $rows);
+\core\dataformat::download_data('caregiver-training-' . date('Ymd-His'), $dataformat, export::columns(), $rows);

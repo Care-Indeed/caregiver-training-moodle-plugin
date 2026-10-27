@@ -87,33 +87,43 @@ final class export_outbox_test extends \advanced_testcase {
         $this->getDataGenerator()->role_assign('manager', $manager->id, \context_system::instance()->id);
         $this->setUser($manager);
         $columns = export::columns();
+        $this->assertSame('Employee name', $columns['employee']);
         $byemployee = export::rows($this->a->binding->payrollnumber);
-        $this->assertNotEmpty($byemployee);
-        foreach ($byemployee as $row) {
-            $this->assertCount(count($columns), $row);
-            $this->assertSame($this->a->alayacareid, $row[array_search('alayacareid', $columns)]);
-        }
-        $completionrow = array_values(array_filter(
-            $byemployee,
-            fn($r) => $r[array_search('snapshottype', $columns)] === 'completion'
-        ))[0];
-        $this->assertSame('complete', $completionrow[array_search('compliance', $columns)]);
-        $this->assertSame(1, $completionrow[array_search('snapshotverified', $columns)]);
-        $this->assertNotSame('', $completionrow[array_search('certificatecode', $columns)]);
+        // One row per cycle, not per snapshot.
+        $this->assertCount(1, $byemployee);
+        $row = $byemployee[0];
+        $this->assertSame(array_keys($columns), array_keys($row));
+        $this->assertSame($this->a->alayacareid, $row['alayacareid']);
+        $this->assertSame('A-2026', $row['cycleid']);
+        $this->assertSame(get_string('compliance_complete', 'local_caregivertraining'), $row['status']);
+        $this->assertSame(get_string('yes'), $row['ontime']);
+        $this->assertMatchesRegularExpression('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/', $row['completedon']);
+        $this->assertMatchesRegularExpression('/^\d+\.\d{2}$/', $row['approvedhours']);
+        $this->assertNotSame('', $row['certificatecode']);
+        $this->assertStringContainsString('verify_certificate.php', $row['certificateurl']);
+        $this->assertStringContainsString(get_string('snapshottype_completion', 'local_caregivertraining'), $row['evidence']);
+        $this->assertStringContainsString(get_string('snapshotverified', 'local_caregivertraining'), $row['evidence']);
+        $this->assertSame(get_string('no'), $row['archived']);
         $profile = profile_fields::load((int) $this->a->user->id);
-        $this->assertSame($profile[profile_fields::HCANUMBER], $completionrow[array_search('hcanumber', $columns)]);
-        $this->assertSame(
-            $profile[profile_fields::REGISTRATIONDATE],
-            $completionrow[array_search('registrationdate', $columns)]
-        );
+        $this->assertSame($profile[profile_fields::HCANUMBER], $row['hcanumber']);
+        $this->assertSame($profile[profile_fields::REGISTRATIONDATE], $row['registrationdate']);
         $byhca = export::rows($profile[profile_fields::HCANUMBER]);
-        $this->assertNotEmpty($byhca);
-        $this->assertSame($this->a->alayacareid, $byhca[0][array_search('alayacareid', $columns)]);
+        $this->assertCount(1, $byhca);
+        $this->assertSame($this->a->alayacareid, $byhca[0]['alayacareid']);
 
         $bycycle = export::rows('B-2026');
         $this->assertCount(1, $bycycle);
-        $this->assertSame('B-2026', $bycycle[0][array_search('cycleid', $columns)]);
+        $this->assertSame('B-2026', $bycycle[0]['cycleid']);
+        $this->assertSame('', $bycycle[0]['completedon']);
+        $this->assertSame('', $bycycle[0]['evidence']);
+        $this->assertCount(2, export::rows(''));
         $this->assertSame([], export::rows('no-such-employee'));
+
+        // Same search and status filters as the Training records page, or one employee.
+        $this->assertCount(2, export::rows('Synthetic'));
+        $this->assertSame(['A-2026'], array_column(export::rows('', 'complete'), 'cycleid'));
+        $this->assertSame(['B-2026'], array_column(export::rows('', '', (int) $this->b->binding->id), 'cycleid'));
+        $this->assertSame(['A-2026'], array_column(export::rows($row['certificatecode']), 'cycleid'));
     }
 
     public function test_archive_hides_but_never_deletes(): void {

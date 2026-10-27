@@ -17,7 +17,7 @@
 namespace local_caregivertraining\local;
 
 /**
- * CSV evidence export by employee and Cycle ID.
+ * CSV training history by employee and Cycle ID: one row per cycle, readable headers and values.
  *
  * @package    local_caregivertraining
  * @copyright  2026 CI Institute of Nursing
@@ -25,78 +25,105 @@ namespace local_caregivertraining\local;
  */
 class export {
     /**
-     * Column headers.
+     * Column keys mapped to their CSV headers. Rows use the same keys.
      *
-     * @return string[]
+     * @return array<string,string>
      */
     public static function columns(): array {
-        return ['alayacareid', 'payrollnumber', 'hcanumber', 'registrationdate', 'moodleuserid', 'fullname',
-            'cycleid', 'status', 'compliance', 'hiredate', 'anniversarydate', 'accessenddate', 'timecompleted', 'approvedseconds',
-            'timepolicy', 'certificatecode', 'resetstate', 'archived', 'snapshotid', 'snapshottype', 'snapshotverified',
-            'snapshotsha256', 'snapshotcreated', 'snapshotretainuntil', 'snapshotcounts', 'certificatefiles'];
+        $keys = ['employee', 'alayacareid', 'payrollnumber', 'hcanumber', 'registrationdate', 'trainingyear', 'cycleid',
+            'status', 'hiredate', 'duedate', 'accessenddate', 'completedon', 'ontime', 'approvedhours', 'certificatecode',
+            'certificateurl', 'evidence', 'archived'];
+        $columns = [];
+        foreach ($keys as $key) {
+            $columns[$key] = get_string('csv_' . $key, config::COMPONENT);
+        }
+        return $columns;
     }
 
     /**
-     * Rows matching an employee identifier, Cycle ID or certificate code. One row per snapshot
-     * (or one row for a cycle without snapshots).
+     * Full training history of the employees shown on the Training records page for the same search and
+     * status (or of one employee): one row per cycle, newest first within each employee, with its evidence
+     * snapshots summarised in one cell.
      *
-     * @param string $filter empty = all
-     * @return array[]
+     * @param string $search see {@see records::employees_sql()}; empty = everyone
+     * @param string $status see {@see records::employees_sql()}; empty = any
+     * @param int $bindingid only this employee, when set
+     * @return array[] rows keyed like {@see columns()}
      */
-    public static function rows(string $filter): array {
+    public static function rows(string $search = '', string $status = '', int $bindingid = 0): array {
         global $DB;
         require_capability('local/caregivertraining:export', \context_system::instance());
-        $filter = trim($filter);
-        $params = [];
-        $where = '1 = 1';
-        if ($filter !== '') {
-            $where = '(b.alayacareid = :f1 OR b.payrollnumber = :f2 OR c.cycleid = :f3 OR c.certificatecode = :f4)';
-            $params = ['f1' => $filter, 'f2' => $filter, 'f3' => $filter, 'f4' => $filter];
+        if ($bindingid) {
+            $bindingids = [$bindingid];
+        } else {
+            [, $from, $where, $params] = records::employees_sql($search, $status);
+            $bindingids = $DB->get_fieldset_sql("SELECT b.id FROM {$from} WHERE {$where}", $params);
         }
+        if (!$bindingids) {
+            return [];
+        }
+        [$insql, $params] = $DB->get_in_or_equal($bindingids, SQL_PARAMS_NAMED, 'binding');
         $userfields = profile_fields::user_fields()->get_sql('u', true);
-        if ($filter !== '') {
-            $hcanumber = $userfields->mappings[\core_user\fields::PROFILE_FIELD_PREFIX . profile_fields::HCANUMBER];
-            $where .= " OR {$hcanumber} = :f5";
-            $params['f5'] = $filter;
-        }
         $cycles = $DB->get_records_sql("SELECT c.*, b.alayacareid, b.payrollnumber {$userfields->selects}
             FROM {local_cgt_cycle} c
             JOIN {local_cgt_binding} b ON b.id = c.bindingid
             JOIN {user} u ON u.id = c.userid
             {$userfields->joins}
-            WHERE {$where}
-            ORDER BY b.alayacareid, c.timedue, c.id", $params + $userfields->params);
+            WHERE c.status <> 'superseded' AND b.id {$insql}
+            ORDER BY u.lastname, u.firstname, b.alayacareid, c.timedue DESC, c.id DESC", $params + $userfields->params);
+        $snapshots = $cycles ? $DB->get_records_list('local_cgt_snapshot', 'cycleid', array_keys($cycles), 'timecreated')
+            : [];
+        $evidence = [];
+        foreach ($snapshots as $snapshot) {
+            $evidence[$snapshot->cycleid][] = self::snapshot_label($snapshot);
+        }
 
         $rows = [];
         $tz = config::timezone();
+        $yes = get_string('yes');
+        $no = get_string('no');
         foreach ($cycles as $cycle) {
             $employment = profile_fields::values_from_record($cycle);
-            $base = [
-                $cycle->alayacareid, (string) $cycle->payrollnumber,
-                $employment['hcanumber'], $employment['registrationdate'], (int) $cycle->userid,
-                fullname($cycle), $cycle->cycleid, $cycle->status, cycle_manager::compliance($cycle), (string) $cycle->hiredate,
-                $cycle->anniversarydate, cycle_manager::access_end_date($cycle->anniversarydate),
-                $cycle->timecompleted ? (new \DateTimeImmutable('@' . $cycle->timecompleted))->setTimezone($tz)->format(DATE_ATOM)
-                    : '',
-                (int) $cycle->approvedseconds, (string) $cycle->timepolicy, (string) $cycle->certificatecode, $cycle->resetstate,
-                (int) $cycle->archived,
+            $completed = $cycle->status === 'completed' && $cycle->timecompleted;
+            $rows[] = [
+                'employee' => fullname($cycle),
+                'alayacareid' => $cycle->alayacareid,
+                'payrollnumber' => $employment['payrollnumber'] !== '' ? $employment['payrollnumber']
+                    : (string) $cycle->payrollnumber,
+                'hcanumber' => $employment['hcanumber'],
+                'registrationdate' => $employment['registrationdate'],
+                'trainingyear' => substr($cycle->anniversarydate, 0, 4),
+                'cycleid' => $cycle->cycleid,
+                'status' => cycle_manager::status_label($cycle),
+                'hiredate' => (string) $cycle->hiredate,
+                'duedate' => $cycle->anniversarydate,
+                'accessenddate' => cycle_manager::access_end_date($cycle->anniversarydate),
+                'completedon' => $completed
+                    ? (new \DateTimeImmutable('@' . $cycle->timecompleted))->setTimezone($tz)->format('Y-m-d H:i') : '',
+                'ontime' => $completed ? ((int) $cycle->timecompleted <= (int) $cycle->timedue ? $yes : $no) : '',
+                'approvedhours' => $completed ? number_format($cycle->approvedseconds / HOURSECS, 2, '.', '') : '',
+                'certificatecode' => (string) $cycle->certificatecode,
+                'certificateurl' => $cycle->certificatecode ? completion_manager::verify_url($cycle) : '',
+                'evidence' => implode('; ', $evidence[$cycle->id] ?? []),
+                'archived' => $cycle->archived ? $yes : $no,
             ];
-            $snapshots = $DB->get_records('local_cgt_snapshot', ['cycleid' => $cycle->id], 'id');
-            if (!$snapshots) {
-                $rows[] = array_merge($base, array_fill(0, 8, ''));
-                continue;
-            }
-            foreach ($snapshots as $snapshot) {
-                $payload = json_decode($snapshot->payload, true);
-                $files = array_map(fn($c) => $c['code'] . ':' . $c['pdfsha256'], $payload['certificates'] ?? []);
-                $rows[] = array_merge($base, [
-                    (int) $snapshot->id, $snapshot->type, (int) $snapshot->verified, $snapshot->payloadhash,
-                    (new \DateTimeImmutable('@' . $snapshot->timecreated))->setTimezone($tz)->format(DATE_ATOM),
-                    (new \DateTimeImmutable('@' . $snapshot->retainuntil))->setTimezone($tz)->format('Y-m-d'),
-                    $snapshot->counts, implode(' ', $files),
-                ]);
-            }
         }
         return $rows;
+    }
+
+    /**
+     * One-line description of an evidence snapshot, e.g. "At completion, 2026-03-05 (verified)".
+     *
+     * @param \stdClass $snapshot local_cgt_snapshot record
+     * @return string
+     */
+    public static function snapshot_label(\stdClass $snapshot): string {
+        $type = get_string_manager()->string_exists('snapshottype_' . $snapshot->type, config::COMPONENT)
+            ? get_string('snapshottype_' . $snapshot->type, config::COMPONENT) : $snapshot->type;
+        return get_string('snapshotlabel', config::COMPONENT, (object) [
+            'type' => $type,
+            'date' => (new \DateTimeImmutable('@' . $snapshot->timecreated))->setTimezone(config::timezone())->format('Y-m-d'),
+            'verified' => get_string($snapshot->verified ? 'snapshotverified' : 'snapshotunverified', config::COMPONENT),
+        ]);
     }
 }

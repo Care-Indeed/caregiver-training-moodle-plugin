@@ -53,7 +53,7 @@ pnpm run local:test:setup
 pnpm run local:test
 ```
 
-`amd/build/tracker.min.js` is hand-written. Before release, rebuild it with `grunt amd` in a Moodle development
+`amd/build/tracker.min.js` and `amd/build/settings.min.js` are hand-written. Before release, rebuild them with `grunt amd` in a Moodle development
 checkout.
 
 ## License

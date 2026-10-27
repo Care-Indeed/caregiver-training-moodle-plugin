@@ -244,6 +244,42 @@ class config {
     }
 
     /**
+     * Quick Start Guide link shown in the email footer, or empty to leave that line out.
+     *
+     * @return string
+     */
+    public static function quick_start_guide_url(): string {
+        return trim((string) self::get('quickstartguideurl', ''));
+    }
+
+    /**
+     * HR Compliance phone number for the email footer.
+     *
+     * @return string
+     */
+    public static function hr_phone(): string {
+        return trim((string) self::get('hrphone', '(650) 278-8013'));
+    }
+
+    /**
+     * HR Compliance email address for the email footer.
+     *
+     * @return string
+     */
+    public static function hr_email(): string {
+        return trim((string) self::get('hremail', 'HRCompliance@careindeed.com'));
+    }
+
+    /**
+     * Platform support email address for the email footer.
+     *
+     * @return string
+     */
+    public static function support_email(): string {
+        return trim((string) self::get('supportemail', 'systemadmin@ci-ion.com'));
+    }
+
+    /**
      * Template subject/body with language-string defaults.
      *
      * @param string $type

@@ -83,7 +83,8 @@ class hook_callbacks {
             $time = \html_writer::span(time_tracker::timeline($cycle), '', ['data-region' => 'local-cgt-time']);
             if (config::time_policy() === config::POLICY_UNRESOLVED) {
                 $html .= $row('i/calendareventtime', $time);
-            } else {
+            } else if (config::required_seconds() > 0) {
+                // With no minimum time, completing the course is the whole requirement, so there is no time to show.
                 $percent = time_tracker::percent($cycle);
                 $percenttext = get_string('banner_percent', config::COMPONENT, $percent);
                 $pie = \html_writer::span('', 'local-cgt-pie', [

@@ -61,34 +61,30 @@ you want to test. After starting, visit **Site administration → Notifications*
 7. Go to the course's **More → Course completion**, tick **all the activities** under
    **Condition: Activity completion**, and save. This tells Moodle "the course is complete when every activity is done".
 
-### Step 2. Write down three numbers
+### Step 2. Configure the plugin
 
-You will type these into the plugin settings.
+Go to **Site administration → Plugins → Local plugins → Caregiver annual training** and set these, clicking **Save changes** on each
+page:
 
-| Number | How to find it |
-| --- | --- |
-| **Course ID** | Open the course. The web address ends in `course/view.php?id=`**`37`**. The number is the Course ID. |
-| **Certificate ID** | Click the Custom certificate activity. The address ends in `view.php?id=`**`512`**. That number is the certificate's course module ID. |
-| **Learner role ID** | Usually **5** (the "Student" role). To check: **Site administration → Users → Define roles**, hover over *Student*; the address shows `roleid=5`. |
+| Page | Setting | What to choose for testing | Why |
+| --- | --- | --- | --- |
+| General settings | Annual training course | your test course (type its name) | The course the plugin manages. Save, so the certificate list fills in. |
+| General settings | Learner role | **Default (Student)** | The role caregivers get in the course. |
+| General settings | Certificate activity | your certificate | The certificate to issue. |
+| Training time | How time is counted | **Time actually spent** | "Not decided yet" (the default) blocks completion. |
+| Training time | Minimum training time | **10 minutes** | So you don't have to study for five hours. |
+| Training time | Count every activity in the course | **ticked** | So time in any activity counts. |
+| Notifications | Training open email, Completion email | ticked (default) | So you can see the emails. |
+| Notifications | Reminder emails | **30,14** | Reminders 30 and 14 days before the due date. |
+| Notifications | Copy HR on emails | a test address such as `hr-test@example.com` | Shows the HR copy in the test mailbox. Never use real HR addresses on a test site. |
+| AlayaCare integration | Send completions to AlayaCare | leave **unticked** | The AlayaCare connection is not part of this test. |
 
-### Step 3. Configure the plugin
+### Step 3. Check the setup
 
-Go to **Site administration → Plugins → Local plugins → Caregiver annual training → Settings**.
+Open **General settings** again. There should be no yellow warning at the top. If there is, it lists what is still
+missing; fix those items and save.
 
-| Setting | What to enter for testing | Why |
-| --- | --- | --- |
-| Annual course ID | your Course ID | The course the plugin manages. |
-| Learner role | your role ID (usually 5) | The role caregivers get in the course. |
-| Custom certificate course module ID | your Certificate ID | The certificate to issue. |
-| Time policy | **Tracked engaged time** | "Unresolved" (the default) blocks completion until HR decides the five-hour rule. |
-| Required seconds | **600** (10 minutes) | So you don't have to study for five hours. The real value is 18000. |
-| Count every activity in the annual course | **ticked** | So time in any activity counts. |
-| Send window-open email / completion email | ticked (default) | So you can see the emails. |
-| Reminder offsets | **30,14** | Reminders 30 and 14 days before the due date. |
-| HR copy recipients | a test address such as `hr-test@example.com` | Shows the HR copy in the test mailbox. Never use real HR addresses on a test site. |
-| Deliver events to the adapter | leave **unticked** | The AlayaCare connection is not part of this test. |
-
-Click **Save changes**.
+- [ ] General settings shows no setup warning.
 
 ### Step 4. Create test caregivers
 
@@ -222,27 +218,28 @@ training.
 1. As caregiver.two, look at the banner and around the course.
 
 **You should see** only caregiver.two's own due date. There is no mention of caregiver.one, and no
-**Caregiver training** administration link.
+**Training records** administration link.
 
 - [ ] No other caregiver's information is visible.
 
 ### Scenario I. The HR administration page
 
 1. As administrator, go to **Site administration → Plugins → Local plugins → Caregiver annual training →
-   Caregiver training**.
-2. Click through the tabs:
-   - **Identity and data exceptions**: problems that need HR or Engineering, e.g. duplicate emails.
-   - **Blocked resets**: cycles that could not safely clear last year's progress (should say *"Nothing to display."*).
-   - **Current cycles**: both test caregivers with their status (Open / Overdue / Complete), due date and time.
-   - **Prior-cycle snapshots**: the permanent copies of completed training.
-3. Click **Export CSV** and open the file in Excel.
+   Training records**.
+2. The page opens on **Employees**: both test caregivers with their status (Open / Overdue / Complete) and due date.
+   Click a name to see all of that caregiver's cycles and the permanent copies of their completed training, then
+   click **Back**.
+3. Use the menu at the top to open **Exceptions** (problems that need HR or Engineering, e.g. duplicate emails) and
+   **Blocked resets** (should say *"No blocked resets."*).
+4. Below the employee list, choose **Comma separated values (.csv)** under **Download training history as**, click
+   **Download** and open the file in Excel.
 
 **You should see** caregiver.one as **Complete** with a certificate code, caregiver.two as **Overdue**, and the
 same information in the spreadsheet.
 
-- [ ] All four tabs open.
-- [ ] Current cycles shows the right status for each caregiver.
-- [ ] CSV export opens and matches.
+- [ ] All three views open.
+- [ ] Employees shows the right status for each caregiver.
+- [ ] The download opens and matches.
 
 ### Scenario J. Next year's training (advanced) — **Technical helper**
 
@@ -261,7 +258,8 @@ This shows that last year's record is kept when the course is cleared for the ne
 2. Log in as caregiver.one and open the course.
 
 **You should see** the activities unticked again (fresh start) and a new due date in the banner. As administrator,
-**Prior-cycle snapshots** still lists last year's record, and **Current cycles** shows both cycles.
+caregiver.one's page in **Training records** shows both cycles, with last year's record kept under
+**Evidence kept**.
 
 - [ ] Progress is cleared for the new year.
 - [ ] Last year's snapshot is still listed.
@@ -287,7 +285,7 @@ These are expected in the current version, so don't log them as new bugs:
 
 - **14-day access limit.** The course closes 14 days after the due date and the overdue message mentions that date.
   HR has since decided there is **no grace period and access stays open**; this will be changed before release.
-- **Five-hour rule.** You set "Tracked engaged time" and 10 minutes for testing. HR has not yet confirmed whether five
+- **Five-hour rule.** You set "Time actually spent" and 10 minutes for testing. HR has not yet confirmed whether five
   hours means tracked time and which activities count.
 - **Leave and termination.** What happens to course access for employees on leave or terminated is still an HR
   decision, so the plugin only records these and does not change access.

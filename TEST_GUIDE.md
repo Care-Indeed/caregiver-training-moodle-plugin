@@ -62,18 +62,18 @@ Set in the Moodle repository's `docker/local/local.env`. These **override** the 
 After editing, recreate the container: `pnpm run local:up:plugin-dev`. Note that `pnpm run local:seed` refuses to
 run while `CAREGIVERTRAINING_ADAPTER_ENABLED=1`, so seed first, then enable delivery.
 
-Plugin settings (**Site administration → Plugins → Local plugins → Caregiver annual training → Settings**):
+Plugin settings (**Site administration → Plugins → Local plugins → Caregiver annual training**; the page is in the first column):
 
 | Setting | Config name | Test value |
 | --- | --- | --- |
-| Annual course ID | `courseid` | Course id of the annual course (seed sets this) |
-| Learner role | `roleid` | `0` = the default student role |
-| Custom certificate course module ID | `certificatecmid` | cmid of the Custom certificate in that course. **Required**, or every cycle has the gate `certificate_not_configured`. Its design must have the learner name and certificate code, no empty pages and no missing images, or cycles wait with `certificate_template_incomplete`. Check it with `cli/apply_certificate_design.php`. |
-| Required certificate design | `certificatefingerprint` | Optional. Pins the approved design; the Care Indeed design is `d8208a3d418370fa103b6757442d0dc243d8f0c1975f0aa9fca5216c2cc2e8cf`. Any other design waits with `certificate_template_incomplete`. |
-| Time policy | `timepolicy` | `tracked` (default `unresolved` blocks completion) |
-| Required seconds | `requiredseconds` | `18000` for the 5-hour tests; `600` for quick UI runs |
-| Count every activity in the annual course | `countallactivities` | ticked (otherwise list cmids in `countablecmids`) |
-| Maximum delivery attempts | `maxattempts` | `20` default; `3` for test B1c |
+| General settings · Annual training course | `courseid` | Course id of the annual course (seed sets this) |
+| General settings · Learner role | `roleid` | **Default (Student)** (`0`) |
+| General settings · Certificate activity | `certificatecmid` | cmid of the Custom certificate in that course. **Required**, or every cycle has the gate `certificate_not_configured`. Its design must have the learner name and certificate code, no empty pages and no missing images, or cycles wait with `certificate_template_incomplete`. Check it with `cli/apply_certificate_design.php`. |
+| General settings · Locked certificate design | `certificatefingerprint` | Optional. Pins the approved design; the Care Indeed design is `d8208a3d418370fa103b6757442d0dc243d8f0c1975f0aa9fca5216c2cc2e8cf`. Any other design waits with `certificate_template_incomplete`. |
+| Training time · How time is counted | `timepolicy` | **Time actually spent** (`tracked`); the default **Not decided yet** (`unresolved`) blocks completion |
+| Training time · Minimum training time | `requiredseconds` (stored in seconds) | 5 hours (`18000`) for the 5-hour tests; 10 minutes (`600`) for quick UI runs |
+| Training time · Count every activity in the course | `countallactivities` | ticked (otherwise pick **Activities that count**, `countablecmids`) |
+| AlayaCare integration · Retry limit | `maxattempts` | `20` default; `3` for test B1c |
 
 Find the course id from the course URL (`course/view.php?id=<COURSE_ID>`) and a cmid from an activity URL
 (`mod/customcert/view.php?id=<CMID>`), or with SQL:
@@ -341,9 +341,9 @@ affected: the cycle stays `completed`, and the learner sees "Completed on …".
 
 **Steps:**
 
-1. Set **Maximum delivery attempts** to `3` in the settings.
+1. Set **Retry limit** to `3` in **AlayaCare integration**.
 2. Continuing from B1b, reset `nextattempt = 0` and run `deliver_outbox` until `status` changes.
-3. Open **Site administration → Plugins → Local plugins → Caregiver annual training → Caregiver training**,
+3. Open **Site administration → Plugins → Local plugins → Caregiver annual training → Training records**,
    tab **Identity and data exceptions**.
 4. Restart the listener with status 200 (A5), then call `curl -s -X POST "$API/v1/cycles/QA-1002-A/repair" -H "Authorization: Bearer $API_KEY"`.
 5. Run `deliver_outbox`.
@@ -356,7 +356,7 @@ affected: the cycle stays `completed`, and the learner sees "Completed on …".
 - Step 5: `status = delivered`; one more POST in the receiver log with the same `X-CGT-Event-Id`.
 - A receiver answering `409` is also treated as delivered (already processed).
 
-**How to verify:** outbox query, exceptions query, receiver log. Reset **Maximum delivery attempts** to `20` afterwards.
+**How to verify:** outbox query, exceptions query, receiver log. Reset **Retry limit** to `20` afterwards.
 
 `[ ] Pass  [ ] Fail  Notes: ____`
 
@@ -381,7 +381,7 @@ curl -s "$API/v1/cycles?modifiedsince=0&limit=100" -H "Authorization: Bearer $AP
 Status values: `status` = `scheduled`, `open`, `blocked`, `completed`, `superseded`; `compliance` = `upcoming`, `open`,
 `overdue`, `complete`, `notapplicable`. Send the previous `servertime` as the next `modifiedsince` to get only changes.
 
-**How to verify:** each test learner appears with the status shown in the admin view's **Current cycles** tab.
+**How to verify:** each test learner appears with the status shown on the **Training records** page.
 Decide with the adapter team whether polling is acceptable or a status webhook must be built.
 
 `[ ] Pass  [ ] Fail  Notes: ____`
@@ -765,7 +765,7 @@ still present (no reset happened).
 ## E. Annual training features (UI and logic)
 
 Learner pages: log in as the test learner in a private window. Admin pages: **Site administration → Plugins →
-Local plugins → Caregiver annual training → Caregiver training** (`$BASE_URL/local/caregivertraining/index.php`).
+Local plugins → Caregiver annual training → Training records** (`$BASE_URL/local/caregivertraining/index.php`).
 
 ### E1 – Student-owned cycles are independent
 
@@ -789,27 +789,35 @@ row per learner; `sql "SELECT cycleid, userid, SUM(creditedseconds) FROM m_local
 
 ### E2 – Snapshot / history dashboard
 
-**Where:** admin view, tab **Prior-cycle snapshots** (`index.php?tab=snapshots`). Other tabs: **Identity and data
-exceptions**, **Blocked resets**, **Current cycles**.
+**Where:** **Training records** (`index.php`), view **Employees**. Other views in the menu at the top:
+**Exceptions (n)** and **Blocked resets (n)**.
 
 **Preconditions:** QA-1001's first cycle completed (E3) and the next cycle `QA-1001-B` created (D4e).
 
 **Steps:**
 
-1. Open **Prior-cycle snapshots**.
-2. Open **Current cycles**; tick **Show archived** and untick it.
-3. As Quinn, open the course.
+1. Search `QA-1001` and click **Apply**; then **Clear filters** and filter by status **Complete**. Click the
+   **Due date** heading to sort.
+2. Click Quinn's name.
+3. In the **⋮** menu of `QA-1001-A`, choose **Archive** and confirm.
+4. Click **Back**.
+5. As Quinn, open the course.
 
 **Expected result:**
 
-- Snapshots tab columns: **Employee**, **Cycle ID**, **Type**, **Created**, **Verified**, **SHA-256**,
-  **Certificate** (download link to the preserved certificate PDF).
-- QA-1001 has a `completion` snapshot (taken when `QA-1001-A` completed) and a `prereset` snapshot (taken when
-  `QA-1001-B` started, before clearing progress). Both are against Cycle ID `QA-1001-A`, `Verified` = yes.
-- Current cycles columns: **Employee**, **AlayaCare ID**, **Payroll number**, **HCA number**, **HCA registration
-  date**, **Cycle ID**, **Status**, **Compliance**, **Due (anniversary)**, **Access ends**, **Completed**,
-  **Approved time**, **Certificate**, **Actions** (Archive for completed cycles).
-- Both `QA-1001-A` (completed, with certificate code) and `QA-1001-B` (open) are listed.
+- Employee list columns: **First name / Last name** (sortable, name links to the history), **AlayaCare ID**,
+  **Payroll number**, **HCA number**, **Latest cycle**, **Status** (coloured badge), **Due date**, **Completed**,
+  **Cycles**. Quinn appears once, with latest cycle `QA-1001-B` and **Cycles** = 2. The search is partial (`QA-10`
+  finds QA-1001 and QA-1002; `QA-1001-A` finds Quinn by Cycle ID); the status filter uses the latest cycle.
+- Quinn's page: **Back** button, Quinn's details with a **View profile** link, then **Training history** with columns
+  **Year**, **Cycle ID**, **Status**, **Due date**, **Access ends**, **Completed**, **Approved time**,
+  **Certificate**, **Evidence kept**, and a **⋮** actions menu. `QA-1001-B` (Open) is listed above `QA-1001-A`
+  (Complete, certificate code linking to the verification page).
+- `QA-1001-A` keeps two pieces of evidence, both verified: "At completion" (taken when it completed) and "Before the
+  yearly reset" (taken when `QA-1001-B` started, before clearing progress), each with a **Certificate PDF** link.
+- Archiving shows a confirmation page, then "Cycle archived."; `QA-1001-A` stays listed with an **Archived** badge
+  and no actions menu.
+- **Back** returns to the list with the search and filter kept.
 - Quinn's course progress is cleared for `QA-1001-B`, and the banner shows the new due date.
 
 **How to verify:** `sql "SELECT s.id, c.cycleid, s.type, s.verified, to_timestamp(s.retainuntil)::date FROM m_local_cgt_snapshot s JOIN m_local_cgt_cycle c ON c.id = s.cycleid ORDER BY s.id;"`
@@ -833,7 +841,7 @@ re-evaluate with S3.
 3. Update the time to `18000` (exactly 5 h). Run S3.
 4. (On QA-1002, which has its own cycle:) S2, S1 with `18001`, S3 on `QA-1002-A`. Skip this if you are keeping
    QA-1002 incomplete for B1b; do B1b first in that case.
-5. Variant: set **Time policy** to *Unresolved*, then S3 on an open cycle.
+5. Variant: set **How time is counted** to *Not decided yet*, then S3 on an open cycle.
 
 **Expected result:**
 
@@ -911,36 +919,39 @@ locked case, add an access restriction to activity 2 ("Activity completion: acti
 
 `[ ] Pass  [ ] Fail  Notes: ____`
 
-### E6 – Export to CSV
+### E6 – Download training history
 
-**Where:** admin view, the form at the top of every tab: text box "Filter by AlayaCare ID, payroll number, HCA
-number or Cycle ID" and button **Export CSV**. Requires `local/caregivertraining:export`.
+**Where:** **Training records**: **Download training history as** below the employee list, and the same selector on
+an employee's page. Requires `local/caregivertraining:export`.
 
 **Steps:**
 
-1. Leave the filter empty, click **Export CSV**.
-2. Export with filter `QA-1001`, then `PR-QA-1002`, then `HCA-QA-1001`, then `QA-1001-A`, then `QA-10` (partial).
+1. With no search, choose **Comma separated values (.csv)** and click **Download**.
+2. Search `QA-1001`, then `PR-QA-1002`, then `HCA-QA-1001`, then `QA-1001-A`, then `QA-10`, downloading each time.
+3. Filter by status **Overdue** and download.
+4. On Quinn's page, download as **Microsoft Excel (.xlsx)** and as **Portable Document Format (.pdf)**.
 
 **Expected result:**
 
-- File name: `caregiver-training-YYYYMMDD-HHMMSS.csv`.
-- Header row (26 columns, in this order):
+- File name: `caregiver-training-YYYYMMDD-HHMMSS` with the chosen format's extension.
+- Header row (18 columns, in this order):
 
   ```text
-  alayacareid,payrollnumber,hcanumber,registrationdate,moodleuserid,fullname,cycleid,status,compliance,hiredate,anniversarydate,accessenddate,timecompleted,approvedseconds,timepolicy,certificatecode,resetstate,archived,snapshotid,snapshottype,snapshotverified,snapshotsha256,snapshotcreated,snapshotretainuntil,snapshotcounts,certificatefiles
+  Employee name,AlayaCare ID,Payroll number,HCA number,HCA registration date,Training year,Cycle ID,Status,Hire date,Due date (anniversary),Access ends,Completed on,Completed on time,Approved training hours,Certificate code,Certificate verification link,Evidence kept,Archived
   ```
 
-- Sample row (completed cycle with a completion snapshot):
+- Sample row (completed cycle):
 
   ```text
-  QA-1001,PR-QA-1001,HCA-QA-1001,2024-03-01,<MOODLE_ID>,Quinn Tester,QA-1001-A,completed,complete,2024-03-15,<ANNIV>,<ANNIV+14>,2026-10-08T23:30:00-07:00,18000,tracked,<code>,done,0,<id>,completion,1,<sha256>,2026-10-08T23:30:05-07:00,2029-10-08,"{...}",<code>:<pdf sha256>
+  Quinn Tester,QA-1001,PR-QA-1001,HCA-QA-1001,2024-03-01,<YEAR>,QA-1001-A,Complete,2024-03-15,<ANNIV>,<ANNIV+14>,2026-10-08 23:30,Yes,5.00,<code>,https://<site>/mod/customcert/verify_certificate.php?...,"At completion, 2026-10-08 (verified)",No
   ```
 
-- One row per snapshot; a cycle without snapshots gives one row with the last 8 columns empty.
-- Filters are **exact** matches on AlayaCare ID, payroll number, HCA number, Cycle ID or certificate code. `QA-1001`
-  → only Quinn's rows; `PR-QA-1002` → only Robin's; `QA-10` → **no rows** (no partial matching).
+- One row per cycle, grouped by employee with the newest cycle first. Superseded cycles are left out.
+- The download contains every cycle of the employees the list shows: `QA-1001` → Quinn's rows; `PR-QA-1002` → Robin's;
+  `QA-10` → both (partial match); **Overdue** → only employees whose latest cycle is overdue. Quinn's page → only
+  Quinn's rows.
 
-**How to verify:** open in Excel; compare with **Current cycles** and **Prior-cycle snapshots**. Each export logs an
+**How to verify:** open in Excel; compare with each employee's history page. Each download logs an
 `evidence_exported` event (**Site administration → Reports → Logs**) with the filter and row count.
 
 `[ ] Pass  [ ] Fail  Notes: ____`

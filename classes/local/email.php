@@ -37,9 +37,11 @@ class email {
     /**
      * Render an email.
      *
-     * @param array $args subject, preheader, label, tone, heading, body (plain text), and optionally details
-     *     ([[label, value], ...]), image (['url' => ..., 'alt' => ...], linked to the CTA), cta (['url' => ..., 'label' => ...]),
-     *     note (plain text) and hrcopy (banner text)
+     * The body is plain text as written in the template. The primary button replaces the main link where the body
+     * mentions it (the text before the link stays as its lead-in); other links stay plain text links.
+     *
+     * @param array $args subject, preheader, label, tone, body (plain text), and optionally cta (['url' => ...,
+     *     'label' => ...]), image (['url' => ..., 'alt' => ...], linked to the CTA) and hrcopy (banner text)
      * @return array{html: string, text: string}
      */
     public static function render(array $args): array {
@@ -47,12 +49,28 @@ class email {
         $site = get_site();
         $sitename = format_string($site->fullname, true, ['context' => \context_system::instance()]);
         [$labelbg, $labelfg] = self::TONES[$args['tone'] ?? 'info'] ?? self::TONES['info'];
-        $details = array_map(fn($row) => ['label' => $row[0], 'value' => $row[1]], $args['details'] ?? []);
-        $cta = !empty($args['cta']['url'])
-            ? $args['cta'] + ['fallback' => get_string('email_fallback', config::COMPONENT)]
-            : null;
-        $note = trim((string) ($args['note'] ?? ''));
-        $footer = get_string('email_footer', config::COMPONENT, $sitename);
+        $cta = !empty($args['cta']['url']) ? $args['cta'] : null;
+        $body = trim($args['body']);
+
+        // Split the body around the main link, so the button sits where the template mentions it.
+        $blocks = [];
+        $placed = false;
+        foreach (preg_split('/\R\s*\R/', $body) as $paragraph) {
+            if ($cta && !$placed && str_ends_with(rtrim($paragraph), $cta['url'])) {
+                $leadin = trim(substr(rtrim($paragraph), 0, -strlen($cta['url'])));
+                if ($leadin !== '') {
+                    $blocks[] = ['html' => self::text_to_html($leadin)];
+                }
+                $blocks[] = ['button' => $cta];
+                $placed = true;
+            } else {
+                $blocks[] = ['html' => self::text_to_html($paragraph)];
+            }
+        }
+        if ($cta && !$placed) {
+            $blocks[] = ['button' => $cta];
+        }
+        $footer = self::footer();
 
         $logo = $PAGE->get_renderer('core')->get_logo_url(null, 88);
         $html = $PAGE->get_renderer('core')->render_from_template('local_caregivertraining/email', [
@@ -64,33 +82,67 @@ class email {
             'label' => $args['label'],
             'labelbg' => $labelbg,
             'labelfg' => $labelfg,
-            'heading' => $args['heading'],
-            'bodyhtml' => self::text_to_html($args['body']),
-            'hasdetails' => !empty($details),
-            'details' => $details,
+            'heading' => $args['subject'],
+            'blocks' => $blocks,
             'image' => empty($args['image']['url']) ? null
                 : $args['image'] + ['link' => $cta['url'] ?? $args['image']['url']],
-            'cta' => $cta,
-            'notehtml' => $note === '' ? '' : self::text_to_html($note),
-            'footer' => $footer,
+            'footer' => $footer['context'],
         ]);
 
         $text = [];
         if (!empty($args['hrcopy'])) {
             $text[] = $args['hrcopy'];
         }
-        $text[] = trim($args['body']);
-        if ($details) {
-            $text[] = implode("\n", array_map(fn($row) => "{$row['label']}: {$row['value']}", $details));
-        }
-        if ($cta) {
+        $text[] = $body;
+        if ($cta && !$placed) {
             $text[] = "{$cta['label']}: {$cta['url']}";
         }
-        if ($note !== '') {
-            $text[] = $note;
-        }
-        $text[] = "--\n" . $footer;
+        $text[] = "--\n" . $footer['text'];
         return ['html' => $html, 'text' => implode("\n\n", $text)];
+    }
+
+    /**
+     * The footer shared by every email: help guide, HR Compliance and platform support contacts.
+     *
+     * Built in this one place (and the email_footer template) so a contact change is made once. Lines whose
+     * setting is empty are left out.
+     *
+     * @return array{context: array, text: string} template context and plain-text version
+     */
+    public static function footer(): array {
+        $component = config::COMPONENT;
+        $guide = config::quick_start_guide_url();
+        $phone = config::hr_phone();
+        $hremail = config::hr_email();
+        $support = config::support_email();
+        $digits = preg_replace('/\D/', '', $phone);
+        $context = [
+            'guide' => $guide === '' ? null : ['heading' => get_string('email_footer_help', $component),
+                'text' => get_string('email_footer_guide', $component), 'url' => $guide],
+            'hr' => $phone === '' && $hremail === '' ? null : [
+                'heading' => get_string('email_footer_training', $component),
+                'label' => get_string('email_footer_hr', $component),
+                'phone' => $phone,
+                'tel' => $phone === '' ? '' : 'tel:+' . (strlen($digits) === 10 ? '1' . $digits : $digits),
+                'separator' => $phone !== '' && $hremail !== '',
+                'email' => $hremail,
+            ],
+            'support' => $support === '' ? null : ['heading' => get_string('email_footer_platform', $component),
+                'label' => get_string('email_footer_systems', $component), 'email' => $support],
+        ];
+
+        $lines = [];
+        if ($context['guide']) {
+            $lines[] = "{$context['guide']['heading']}\n{$context['guide']['text']} {$guide}";
+        }
+        if ($context['hr']) {
+            $lines[] = "{$context['hr']['heading']}\n{$context['hr']['label']} "
+                . implode(' | ', array_filter([$phone, $hremail]));
+        }
+        if ($context['support']) {
+            $lines[] = "{$context['support']['heading']}\n{$context['support']['label']} {$support}";
+        }
+        return ['context' => $context, 'text' => implode("\n\n", $lines)];
     }
 
     /**

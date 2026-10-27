@@ -58,28 +58,26 @@ class activation {
             return false;
         }
         $reset = core_login_generate_password_reset($user);
-        $site = get_site();
         $expiry = format_time(isset($CFG->pwresettime) ? (int) $CFG->pwresettime : 1800);
-        $a = (object) [
-            'firstname' => $user->firstname,
-            'sitename' => format_string($site->fullname),
-            'username' => $user->username,
-            'link' => $CFG->wwwroot . '/login/forgot_password.php?token=' . $reset->token,
-            'loginurl' => $CFG->wwwroot . '/login/index.php',
-            'expiry' => $expiry,
+        $link = $CFG->wwwroot . '/login/forgot_password.php?token=' . $reset->token;
+        $replacements = [
+            '{firstname}' => $user->firstname,
+            '{lastname}' => $user->lastname,
+            '{username}' => $user->username,
+            '{expiry}' => $expiry,
+            '{link}' => $link,
+            '{loginurl}' => $CFG->wwwroot . '/login/index.php',
+            '{quickstartguideurl}' => config::quick_start_guide_url(),
         ];
         $component = config::COMPONENT;
-        $subject = get_string('activation_subject', $component, format_string($site->fullname));
+        $subject = strtr(config::template('activation', 'subject'), $replacements);
         $email = email::render([
             'subject' => $subject,
             'preheader' => get_string('email_preheader_activation', $component),
             'label' => get_string('email_label_activation', $component),
             'tone' => 'info',
-            'heading' => get_string('activation_heading', $component),
-            'body' => get_string('activation_intro', $component, $a),
-            'details' => [[get_string('email_detail_username', $component), $user->username]],
-            'cta' => ['url' => $a->link, 'label' => get_string('email_cta_activation', $component)],
-            'note' => get_string('activation_note', $component, $a),
+            'body' => strtr(config::template('activation', 'body'), $replacements),
+            'cta' => ['url' => $link, 'label' => get_string('email_cta_activation', $component)],
         ]);
         return (bool) email_to_user($user, \core_user::get_noreply_user(), $subject, $email['text'], $email['html']);
     }
