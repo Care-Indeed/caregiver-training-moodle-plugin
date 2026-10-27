@@ -38,6 +38,8 @@ jobs:
         with:
           path: plugin
 
+      - name: Probe PHP
+        run: which -a php; php -v; phpenv versions; php-config --version; ls /usr/bin/php* /etc/php 2>&1 | head; echo $PATH
       # The runner image has its own PHP; setup-php must not assume a GitHub image
       - uses: shivammathur/setup-php@v2
         env:
