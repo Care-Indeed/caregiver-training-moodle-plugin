@@ -1,0 +1,110 @@
+name: Checks
+
+# Static checks against the Moodle release production runs (5.1). The PHPUnit and Behat suites
+# are run by hand (TEST_GUIDE.md), so the database is never initialised here.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static:
+    name: Moodle plugin checks
+    runs-on:
+      - codebuild-careindeed-gha-runner-${{ github.run_id }}-${{ github.run_attempt }}
+      - image:ubuntu-7.0
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 3
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: plugin
+
+      # The runner image's phpenv shims come first on PATH and would shadow the
+      # PHP that setup-php installs, which then can't find its own version.
+      - name: Take the image's phpenv off PATH
+        run: echo "PATH=$(tr ':' '\n' <<<"$PATH" | grep -v phpenv | paste -sd:)" >> "$GITHUB_ENV"
+      - uses: shivammathur/setup-php@v2
+        env:
+          runner: self-hosted
+        with:
+          php-version: "8.3"
+          extensions: pgsql, zip, gd, xmlrpc, soap
+          ini-values: max_input_vars=5000
+          coverage: none
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Install moodle-plugin-ci
+        run: |
+          composer create-project -n --no-dev --prefer-dist moodlehq/moodle-plugin-ci ci ^4
+          echo "$(cd ci/bin; pwd)" >> "$GITHUB_PATH"
+          echo "$(cd ci/vendor/bin; pwd)" >> "$GITHUB_PATH"
+          sudo locale-gen en_AU.UTF-8
+
+      # moodle-plugin-ci creates the test database with psql, which the runner image lacks
+      - name: Install the PostgreSQL client
+        run: apt-get update -qq && apt-get install -y -qq postgresql-client >/dev/null
+
+      - name: Install Moodle
+        env:
+          DB: pgsql
+          MOODLE_BRANCH: MOODLE_501_STABLE
+        run: |
+          moodle-plugin-ci add-plugin mdjnelson/moodle-mod_customcert --branch MOODLE_500_STABLE
+          moodle-plugin-ci install --plugin ./plugin --db-host=127.0.0.1 --no-init
+
+      - name: PHP lint
+        if: ${{ !cancelled() }}
+        run: moodle-plugin-ci phplint
+
+      - name: Coding style
+        if: ${{ !cancelled() }}
+        run: moodle-plugin-ci phpcs --max-warnings 0
+
+      - name: PHPDoc
+        if: ${{ !cancelled() }}
+        run: moodle-plugin-ci phpdoc
+
+      # Reported, not enforced: the tables use the local_cgt_ prefix, and renaming them would
+      # mean migrating production data.
+      - name: Plugin structure
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        run: moodle-plugin-ci validate
+
+      - name: Upgrade savepoints
+        if: ${{ !cancelled() }}
+        run: moodle-plugin-ci savepoints
+
+      # Reported, not enforced: email.mustache uses the table attributes email clients need,
+      # which the HTML validator flags as obsolete.
+      - name: Mustache templates
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        run: moodle-plugin-ci mustache
+
+      # Also fails when amd/build is stale against amd/src.
+      - name: JavaScript build
+        if: ${{ !cancelled() }}
+        run: moodle-plugin-ci grunt --max-lint-warnings 0
