@@ -18,7 +18,9 @@ concurrency:
 jobs:
   static:
     name: Moodle plugin checks
-    runs-on: ubuntu-latest
+    runs-on:
+      - codebuild-careindeed-gha-runner-${{ github.run_id }}-${{ github.run_attempt }}
+      - image:ubuntu-7.0
     timeout-minutes: 20
 
     services:
@@ -36,7 +38,13 @@ jobs:
         with:
           path: plugin
 
+      # The runner image's phpenv shims come first on PATH and would shadow the
+      # PHP that setup-php installs, which then can't find its own version.
+      - name: Take the image's phpenv off PATH
+        run: echo "PATH=$(tr ':' '\n' <<<"$PATH" | grep -v phpenv | paste -sd:)" >> "$GITHUB_ENV"
       - uses: shivammathur/setup-php@v2
+        env:
+          runner: self-hosted
         with:
           php-version: "8.3"
           extensions: pgsql, zip, gd, xmlrpc, soap
@@ -53,6 +61,10 @@ jobs:
           echo "$(cd ci/bin; pwd)" >> "$GITHUB_PATH"
           echo "$(cd ci/vendor/bin; pwd)" >> "$GITHUB_PATH"
           sudo locale-gen en_AU.UTF-8
+
+      # moodle-plugin-ci creates the test database with psql, which the runner image lacks
+      - name: Install the PostgreSQL client
+        run: apt-get update -qq && apt-get install -y -qq postgresql-client >/dev/null
 
       - name: Install Moodle
         env:
