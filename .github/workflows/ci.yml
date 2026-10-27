@@ -62,6 +62,10 @@ jobs:
           echo "$(cd ci/vendor/bin; pwd)" >> "$GITHUB_PATH"
           sudo locale-gen en_AU.UTF-8
 
+      # moodle-plugin-ci creates the test database with psql, which the runner image lacks
+      - name: Install the PostgreSQL client
+        run: apt-get update -qq && apt-get install -y -qq postgresql-client >/dev/null
+
       - name: Install Moodle
         env:
           DB: pgsql
