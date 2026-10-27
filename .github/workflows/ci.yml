@@ -18,7 +18,9 @@ concurrency:
 jobs:
   static:
     name: Moodle plugin checks
-    runs-on: ubuntu-latest
+    runs-on:
+      - codebuild-careindeed-gha-runner-${{ github.run_id }}-${{ github.run_attempt }}
+      - image:ubuntu-7.0
     timeout-minutes: 20
 
     services:
