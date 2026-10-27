@@ -202,8 +202,11 @@ if ($hassiteconfig) {
         PARAM_RAW
     ));
     // Contacts in the footer every email shares.
-    $page->add(new admin_setting_heading("{$component}/emailfooter", $str('settings_emailfooter'),
-        $str('settings_emailfooter_desc')));
+    $page->add(new admin_setting_heading(
+        "{$component}/emailfooter",
+        $str('settings_emailfooter'),
+        $str('settings_emailfooter_desc')
+    ));
     $page->add(new admin_setting_configtext(
         "{$component}/quickstartguideurl",
         $str('quickstartguideurl'),

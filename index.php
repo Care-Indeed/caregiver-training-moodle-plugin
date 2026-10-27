@@ -181,12 +181,21 @@ if ($view === 'employees' && $employee) {
             }
             $links = [];
             foreach (json_decode($snapshot->payload, true)['certificates'] ?? [] as $cert) {
-                $url = moodle_url::make_pluginfile_url($context->id, $component, 'snapshotcert', $snapshot->id, '/',
-                    $cert['filename'], true);
+                $url = moodle_url::make_pluginfile_url(
+                    $context->id,
+                    $component,
+                    'snapshotcert',
+                    $snapshot->id,
+                    '/',
+                    $cert['filename'],
+                    true
+                );
                 $links[] = html_writer::link($url, $OUTPUT->pix_icon('f/pdf', '') . get_string('certificatepdf', $component));
             }
-            $evidence[] = html_writer::div(s(export::snapshot_label($snapshot)) . ($links ? '<br>' . implode(' ', $links) : ''),
-                'mb-1');
+            $evidence[] = html_writer::div(
+                s(export::snapshot_label($snapshot)) . ($links ? '<br>' . implode(' ', $links) : ''),
+                'mb-1'
+            );
         }
         $statushtml = records::status_badge($c);
         if ($c->archived) {
@@ -254,8 +263,12 @@ if ($view === 'employees') {
     // Filters.
     echo html_writer::start_tag('form', ['method' => 'get', 'action' => $pageurl, 'class' => 'd-flex flex-wrap gap-2 mb-3',
         'role' => 'search']);
-    echo html_writer::label(get_string('searchemployees', $component), 'local-cgt-search', false,
-        ['class' => 'visually-hidden']);
+    echo html_writer::label(
+        get_string('searchemployees', $component),
+        'local-cgt-search',
+        false,
+        ['class' => 'visually-hidden']
+    );
     echo html_writer::empty_tag('input', ['type' => 'search', 'name' => 'search', 'id' => 'local-cgt-search',
         'value' => $search, 'class' => 'form-control w-auto', 'size' => 45,
         'placeholder' => get_string('searchemployees', $component)]);
@@ -264,8 +277,13 @@ if ($view === 'employees') {
         $statusoptions[$name] = get_string('compliance_' . $name, $component);
     }
     echo html_writer::label(get_string('col_status', $component), 'local-cgt-status', false, ['class' => 'visually-hidden']);
-    echo html_writer::select($statusoptions, 'status', $status, false,
-        ['id' => 'local-cgt-status', 'class' => 'form-select w-auto']);
+    echo html_writer::select(
+        $statusoptions,
+        'status',
+        $status,
+        false,
+        ['id' => 'local-cgt-status', 'class' => 'form-select w-auto']
+    );
     echo html_writer::empty_tag('input', ['type' => 'submit', 'class' => 'btn btn-primary',
         'value' => get_string('apply', $component)]);
     if ($search !== '' || $status !== '') {
@@ -378,8 +396,14 @@ echo html_writer::div(html_writer::link(
     get_string($showresolved ? 'showopenonly' : 'showresolved', $component),
     ['class' => 'btn btn-outline-secondary btn-sm']
 ), 'mb-3');
-$records = $DB->get_records('local_cgt_exception', $showresolved ? null : ['status' => 'open'], 'timemodified DESC', '*', 0,
-    500);
+$records = $DB->get_records(
+    'local_cgt_exception',
+    $showresolved ? null : ['status' => 'open'],
+    'timemodified DESC',
+    '*',
+    0,
+    500
+);
 if (!$records) {
     echo $OUTPUT->notification(get_string('noexceptions', $component), \core\output\notification::NOTIFY_SUCCESS, false);
     echo $OUTPUT->footer();
@@ -400,8 +424,10 @@ foreach ($records as $r) {
         s($r->alayacareid) ?: '-',
         html_writer::tag('code', s($r->details), ['class' => 'text-break']),
         $datetime($r->timemodified),
-        html_writer::span(get_string('exception_' . ($open ? 'open' : 'resolved'), $component),
-            'badge ' . ($open ? 'bg-warning text-dark' : 'bg-success')),
+        html_writer::span(
+            get_string('exception_' . ($open ? 'open' : 'resolved'), $component),
+            'badge ' . ($open ? 'bg-warning text-dark' : 'bg-success')
+        ),
         $actionmenu($canmanage && $open ? [[$actionurl('resolve', (int) $r->id), get_string('resolveexception', $component)]]
             : []),
     ]);
