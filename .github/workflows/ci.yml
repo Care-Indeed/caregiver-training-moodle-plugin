@@ -38,7 +38,10 @@ jobs:
         with:
           path: plugin
 
+      # The runner image has its own PHP; setup-php must not assume a GitHub image
       - uses: shivammathur/setup-php@v2
+        env:
+          runner: self-hosted
         with:
           php-version: "8.3"
           extensions: pgsql, zip, gd, xmlrpc, soap
