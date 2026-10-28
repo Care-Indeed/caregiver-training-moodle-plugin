@@ -239,7 +239,6 @@ class notifier {
      * @param string $subject rendered subject
      * @param string $body rendered body
      * @param array|null $published public certificate URLs
-     * @param string $hrcopy HR copy banner, empty for the learner
      * @return array{html: string, text: string}
      */
     private static function compose(
@@ -247,8 +246,7 @@ class notifier {
         string $type,
         string $subject,
         string $body,
-        ?array $published,
-        string $hrcopy = ''
+        ?array $published
     ): array {
         $component = config::COMPONENT;
         $url = self::course_url($cycle);
@@ -271,12 +269,14 @@ class notifier {
             'body' => $body,
             'image' => $image,
             'cta' => ['url' => $url, 'label' => get_string("email_cta_{$type}", $component)],
-            'hrcopy' => $hrcopy,
         ]);
     }
 
     /**
-     * Send the learner message and HR copies.
+     * Send the learner message, with HR in BCC when HR copies are set.
+     *
+     * Without HR copies it goes through the message API (email plus the Moodle notification). With them it is one
+     * email to the learner blind-copied to HR, since the message API can't add BCC recipients.
      *
      * @param \stdClass $cycle
      * @param string $type
@@ -309,6 +309,11 @@ class notifier {
         $email = self::compose($cycle, $type, $subject, $body, $published);
         $attachname = $certificate ? 'certificate-' . $certificate->get_filename() : '';
 
+        $hremails = config::hr_cc_emails();
+        if ($hremails) {
+            return mailer::send($user, $subject, $email['text'], $email['html'], $hremails, $certificate, $attachname);
+        }
+
         $message = new \core\message\message();
         $message->component = config::COMPONENT;
         $message->name = $type;
@@ -327,45 +332,6 @@ class notifier {
             $message->attachment = $certificate;
             $message->attachname = $attachname;
         }
-        if (!message_send($message)) {
-            return false;
-        }
-
-        $hremails = config::hr_cc_emails();
-        if (!$hremails) {
-            return true;
-        }
-        $hrcopy = self::compose(
-            $cycle,
-            $type,
-            $subject,
-            $body,
-            $published,
-            get_string('email_hrcopy', config::COMPONENT, ['name' => fullname($user), 'email' => $user->email])
-        );
-        $hrattachment = $certificate ? $certificate->copy_content_to_temp() : '';
-        try {
-            foreach ($hremails as $address) {
-                $recipient = \core_user::get_noreply_user();
-                $recipient->email = $address;
-                $recipient->firstname = 'HR';
-                $recipient->lastname = '';
-                $recipient->mailformat = 1;
-                email_to_user(
-                    $recipient,
-                    \core_user::get_noreply_user(),
-                    '[Copy] ' . $subject . ' - ' . fullname($user),
-                    $hrcopy['text'],
-                    $hrcopy['html'],
-                    $hrattachment,
-                    $attachname
-                );
-            }
-        } finally {
-            if ($hrattachment && file_exists($hrattachment)) {
-                unlink($hrattachment);
-            }
-        }
-        return true;
+        return (bool) message_send($message);
     }
 }

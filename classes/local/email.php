@@ -41,7 +41,7 @@ class email {
      * mentions it (the text before the link stays as its lead-in); other links stay plain text links.
      *
      * @param array $args subject, preheader, label, tone, body (plain text), and optionally cta (['url' => ...,
-     *     'label' => ...]), image (['url' => ..., 'alt' => ...], linked to the CTA) and hrcopy (banner text)
+     *     'label' => ...]), image (['url' => ..., 'alt' => ...], linked to the CTA)
      * @return array{html: string, text: string}
      */
     public static function render(array $args): array {
@@ -78,7 +78,6 @@ class email {
             'preheader' => $args['preheader'] ?? '',
             'sitename' => $sitename,
             'logourl' => $logo ? $logo->out(false) : '',
-            'hrcopy' => $args['hrcopy'] ?? '',
             'label' => $args['label'],
             'labelbg' => $labelbg,
             'labelfg' => $labelfg,
@@ -89,11 +88,7 @@ class email {
             'footer' => $footer['context'],
         ]);
 
-        $text = [];
-        if (!empty($args['hrcopy'])) {
-            $text[] = $args['hrcopy'];
-        }
-        $text[] = $body;
+        $text = [$body];
         if ($cta && !$placed) {
             $text[] = "{$cta['label']}: {$cta['url']}";
         }
