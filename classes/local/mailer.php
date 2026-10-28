@@ -51,8 +51,10 @@ class mailer {
         global $CFG, $PAGE, $SITE;
         require_once($CFG->libdir . '/filelib.php');
 
-        if (defined('BEHAT_SITE_RUNNING') && !defined('TEST_EMAILCATCHER_MAIL_SERVER') &&
-                !defined('TEST_EMAILCATCHER_API_SERVER')) {
+        if (
+            defined('BEHAT_SITE_RUNNING') && !defined('TEST_EMAILCATCHER_MAIL_SERVER') &&
+            !defined('TEST_EMAILCATCHER_API_SERVER')
+        ) {
             return true;
         }
         if (!empty($CFG->noemailever)) {
