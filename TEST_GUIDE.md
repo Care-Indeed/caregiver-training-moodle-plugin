@@ -847,7 +847,7 @@ re-evaluate with S3.
 
 | Step | Approved | `status` | `gates` | Banner |
 | --- | --- | --- | --- | --- |
-| 2 | 17999 | `open` | `["time_requirement_not_met"]` | "4 hrs 59 mins completed of 5 hours · 1 min remaining · About 99%" |
+| 2 | 17999 | `open` | `["time_requirement_not_met"]` | "Course Total: 4 hrs 59 mins of 5 hrs · About 99%" |
 | 3 | 18000 | `completed` | `[]` | "Completed on <date>" |
 | 4 | 18001 | `completed` | `[]` | "Completed on <date>" |
 | 5 | n/a | `open` | includes `time_policy_unresolved` | "Recorded activity time: … completion is on hold." |
@@ -879,7 +879,7 @@ snapshot is taken, a completion email is queued, and one `cycle.completed` outbo
 
 **Expected result:**
 
-- Banner line: `<approved> completed of 10 mins · <remaining> remaining · About <n>%` with a round progress chart.
+- Banner line: `Course Total: <approved> of 10 mins · About <n>%` with a round progress chart.
   Remaining minutes round **up**; completed never exceeds the requirement.
 - A heartbeat request every **30 s** (`heartbeatseconds`); the banner updates after each one without reloading.
 - Step 3: beats while hidden earn nothing (`reason: "hidden"`); a beat is sent on return.

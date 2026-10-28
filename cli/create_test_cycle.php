@@ -27,6 +27,7 @@ define('CLI_SCRIPT', true);
 require(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/clilib.php');
 
+use local_caregivertraining\local\activation;
 use local_caregivertraining\local\binding_manager;
 use local_caregivertraining\local\config;
 use local_caregivertraining\local\cycle_manager;
@@ -37,6 +38,7 @@ use local_caregivertraining\local\cycle_manager;
     'alayacareid' => '',
     'cycleid' => '',
     'anniversarydate' => '',
+    'sendactivation' => false,
 ], ['h' => 'help']);
 
 if ($unrecognised) {
@@ -56,6 +58,8 @@ Options:
   --anniversarydate=Y-m-d
                        Anniversary (due) date (default 30 days after today). The window opens
                        60 days before it and access ends 14 days after it.
+  --sendactivation     Queue the account setup email, as the adapter does for new learners. Skipped
+                       when the learner has already logged in. Sent by the next cron run.
   -h, --help           Print this help
 
 Example:
@@ -96,6 +100,13 @@ try {
 }
 
 $cycle = $result['cycle'];
+if ($options['sendactivation']) {
+    if (activation::queue($userid) === 'queued') {
+        cli_writeln('Account setup email queued; it is sent by the next cron run.');
+    } else {
+        cli_writeln('Account setup email not queued: the learner has already logged in.');
+    }
+}
 cli_writeln("Cycle {$cycle['cycleid']} {$result['action']}: status {$cycle['status']}, "
     . "opens " . cycle_manager::open_date($cycle['anniversarydate']) . ", due {$cycle['anniversarydate']}, "
     . "access ends " . cycle_manager::access_end_date($cycle['anniversarydate']) . ".");

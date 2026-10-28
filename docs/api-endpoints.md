@@ -950,6 +950,7 @@ php public/local/caregivertraining/cli/create_test_cycle.php --userid=42
 | `--alayacareid` | `TEST-{userid}` | AlayaCare id to link. Ignored if the user is already linked. |
 | `--cycleid` | `TEST-{userid}-{anniversarydate}` | Cycle ID. |
 | `--anniversarydate` | 30 days from today | Anniversary (due) date, `YYYY-MM-DD`. The window opens 60 days before it, so the default cycle opens immediately. |
+| `--sendactivation` | off | Queue the account setup email, like `sendactivation` on `provision_learner`. Skipped if the learner has already logged in. The next cron run sends it. |
 | `-h`, `--help` | | Print help. |
 
 It goes through the same code as `provision_learner` and `upsert_cycle`, so the same conflict rules and errors apply.

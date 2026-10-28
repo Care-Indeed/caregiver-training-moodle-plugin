@@ -186,7 +186,7 @@ final class time_tracker_test extends \advanced_testcase {
         $cycle = cycle_manager::get('T-1');
         $this->assertSame(0, time_tracker::percent($cycle));
         $this->assertSame(
-            '<strong>0 mins</strong> completed of <strong>5 hours</strong> · <strong>5 hrs</strong> remaining',
+            'Course Total: <strong>0 mins</strong> of <strong>5 hrs</strong>',
             time_tracker::timeline($cycle)
         );
     }
@@ -201,14 +201,14 @@ final class time_tracker_test extends \advanced_testcase {
 
         $DB->set_field('local_cgt_timesession', 'creditedseconds', 510, ['id' => $session->id]);
         $this->assertSame(
-            '<strong>8 mins</strong> completed of <strong>10 mins</strong> · <strong>2 mins</strong> remaining',
+            'Course Total: <strong>8 mins</strong> of <strong>10 mins</strong>',
             time_tracker::timeline($cycle)
         );
         $this->assertFalse(time_tracker::requirement_met($cycle));
 
         $DB->set_field('local_cgt_timesession', 'creditedseconds', 720, ['id' => $session->id]);
         $this->assertSame(
-            '<strong>10 mins</strong> completed of <strong>10 mins</strong> · <strong>0 mins</strong> remaining',
+            'Course Total: <strong>10 mins</strong> of <strong>10 mins</strong>',
             time_tracker::timeline($cycle)
         );
         $this->assertSame(100, time_tracker::percent($cycle));

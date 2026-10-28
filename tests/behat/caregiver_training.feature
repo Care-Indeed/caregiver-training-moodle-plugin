@@ -26,7 +26,7 @@ Feature: Caregiver annual training learner experience and administrator view
     And I log in as "cg1"
     And I am on "Synthetic annual caregiver training" course homepage
     Then I should see "30 days remaining"
-    And I should not see "completed of"
+    And I should not see "Course Total"
     And I should not see "completion is on hold"
     And ".local-cgt-pie" "css_element" should not exist
 
