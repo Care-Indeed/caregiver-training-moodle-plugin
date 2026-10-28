@@ -76,7 +76,7 @@ page:
 | Training time | Count every activity in the course | **ticked** | So time in any activity counts. |
 | Notifications | Training open email, Completion email | ticked (default) | So you can see the emails. |
 | Notifications | Reminder emails | **30,14** | Reminders 30 and 14 days before the due date. |
-| Notifications | Copy HR on emails | a test address such as `hr-test@example.com` | Shows the HR copy in the test mailbox. Never use real HR addresses on a test site. |
+| Notifications | Copy HR on emails | a test address such as `hr-test@example.com` | Shows the HR blind copy in the test mailbox. Never use real HR addresses on a test site. |
 | AlayaCare integration | Send completions to AlayaCare | leave **unticked** | The AlayaCare connection is not part of this test. |
 
 ### Step 3. Check the setup
@@ -201,7 +201,7 @@ Running the task again must **not** send the same email twice.
 
 - [ ] Window-open email received.
 - [ ] Completion email received, with certificate code.
-- [ ] HR copy received.
+- [ ] HR blind copy (BCC) received, identical to the learner's email.
 - [ ] No duplicates after running the task again.
 
 ### Scenario G. An overdue caregiver

@@ -209,7 +209,7 @@ final class completion_test extends \advanced_testcase {
     }
 
     public function test_completion_issues_exactly_one_certificate_event_and_email(): void {
-        global $DB;
+        global $DB, $CFG;
         set_config('timepolicy', config::POLICY_NOMINAL, 'local_caregivertraining');
         $this->gen->create_evidence($this->fixture, (int) $this->learner->user->id);
         $issuesbefore = $DB->count_records('customcert_issues', ['userid' => $this->learner->user->id]);
@@ -253,13 +253,16 @@ final class completion_test extends \advanced_testcase {
         $this->assertTrue($event['data']['ontime']);
 
         $this->preventResetByRollback();
+        // PHPMailer only writes the Bcc header for the mail() transport, so the test can see it.
+        $CFG->smtphosts = '';
         $sink = $this->redirectEmails();
         $this->assertSame(1, notifier::send_queued());
         $this->assertSame(0, notifier::send_queued(), 'no duplicate completion email');
-        $recipients = array_map(fn($m) => $m->to, $sink->get_messages());
-        sort($recipients);
-        $this->assertSame(['hr@example.com', $this->learner->user->email], $recipients);
-        foreach ($sink->get_messages() as $message) {
+        $messages = $sink->get_messages();
+        $this->assertCount(1, $messages, 'HR is blind-copied on the learner email, not sent a separate copy');
+        $this->assertSame($this->learner->user->email, $messages[0]->to);
+        $this->assertMatchesRegularExpression('/^Bcc: hr@example\.com\R/m', $messages[0]->header);
+        foreach ($messages as $message) {
             $body = quoted_printable_decode($message->body);
             $this->assertStringContainsString(
                 'filename=certificate-' . $cycle->certificatecode . '.pdf',
@@ -273,11 +276,6 @@ final class completion_test extends \advanced_testcase {
             $this->assertStringContainsString('href="tel:+16502788013"', $body, 'shared footer');
             $this->assertStringContainsString('href="mailto:HRCompliance@careindeed.com"', $body);
             $this->assertStringContainsString('href="mailto:systemadmin@ci-ion.com"', $body);
-            $this->assertSame(
-                $message->to === 'hr@example.com',
-                str_contains($body, 'HR copy of the email sent to'),
-                'only the HR copy carries the HR banner'
-            );
         }
     }
 

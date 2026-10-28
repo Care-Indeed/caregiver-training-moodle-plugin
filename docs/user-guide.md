@@ -85,7 +85,7 @@ Each caregiver's cycle is independent. Resetting or completing one caregiver nev
 
 - Branded emails when the window opens, as reminders before the due date, on the due date, when overdue, and on
   completion, each with its own on/off switch and editable wording.
-- An optional HR copy of every learner email.
+- Optional HR blind copies (BCC) of every learner email.
 - Each email is sent once per cycle, however often the task runs.
 
 **Administration and evidence**
@@ -168,7 +168,7 @@ that don't apply are hidden: for example, the activity list only appears once yo
 | --- | --- |
 | Training open, Due today, Overdue and Completion email | Switch each email on or off. Training open and Completion are on by default. |
 | Reminder emails | Days before the due date to send reminders, for example `30,14`. Empty sends none. |
-| Copy HR on emails | Comma-separated addresses that get a copy of every learner email. |
+| Copy HR on emails | Comma-separated addresses blind-copied (BCC) on every learner email. Learners can't see them. |
 
 **Email templates** has a **Subject** and **Message** for each email, filled in with the default wording. Edit them
 using the [placeholders](#placeholders); empty a field to go back to the default.
@@ -316,7 +316,8 @@ Before the yearly reset, 2027-01-20 (verified)". Each download is logged.
 | Completed | When the cycle completes, with the certificate PDF attached. | View Certificate | On |
 
 Emails are sent by the "Send caregiver training notifications" task, so they can take up to 30 minutes to arrive.
-Each one is sent only once per cycle. HR copies carry a banner naming the learner they were sent to.
+Each one is sent only once per cycle. HR is blind-copied on the learner's own email, so HR sees exactly what the learner got,
+with the learner in the To line. While HR copies are set, learner emails skip the Moodle notification (the bell).
 
 Each email has one button, for its main link. Where the message mentions that link (for example "Start your
 training here: {courseurl}"), the button appears in that spot; other links, such as the login page, stay plain
