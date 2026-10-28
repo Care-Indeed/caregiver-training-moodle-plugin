@@ -17,6 +17,11 @@ body:not(.jsenabled) #page-wrapper > .local-cgt-banner ~ #page.drawers,
     margin-top: 0;
 }
 
+/* Due date line on the course homepage. */
+.local-cgt-banner .local-cgt-due-large {
+    font-size: 1.25rem;
+}
+
 /*
  * Clock-face pie in place of the clock icon: an outlined circle with the filled share inset inside it.
  * The share comes from the --local-cgt-percent custom property (0-100).

@@ -108,6 +108,10 @@ docker compose --env-file docker/local/local.env exec moodle \
   php /var/www/html/public/local/caregivertraining/cli/create_test_cycle.php --userid=102 --anniversarydate=2026-10-07
 ```
 
+To test the account setup email, add `--sendactivation` for a caregiver who has never logged in. The adapter
+sends this email for new learners; creating a user by hand or running the command without the option never does.
+The email arrives in the test mailbox after the next cron run (`pnpm run local:cron`).
+
 Replace `101`/`102` with the real user IDs and the date with **yesterday's date** (format `YYYY-MM-DD`). The
 command prints a line like *"Cycle TEST-101-2026-11-07 created: status open, opens …, due …"*. "status open"
 means the caregiver can start training.
@@ -133,7 +137,7 @@ window to log in as a caregiver while staying logged in as administrator in your
 
 **You should see** a banner at the top: *"Due November 7, 2026 · 30 days remaining"* (30 days from the day the
 cycle was created), and below it
-*"0 mins completed of 10 mins · 10 mins remaining · About 0%"* with a small round progress circle.
+*"Course Total: 0 mins of 10 mins · About 0%"* with a small round progress circle.
 
 - [ ] Banner shows the right due date and days remaining.
 
@@ -165,7 +169,7 @@ one."* There is no button on the course page or on the last activity.
 
 1. Keep caregiver.one active in the course until the banner reaches 10 minutes.
 
-**You should see** *"10 mins completed of 10 mins · 0 mins remaining · About 100%"*, and the number stops at 10 even
+**You should see** *"Course Total: 10 mins of 10 mins · About 100%"*, and the number stops at 10 even
 if you keep working.
 
 - [ ] Time stops at the requirement and never shows more than 10 of 10.

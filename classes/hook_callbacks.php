@@ -78,7 +78,9 @@ class hook_callbacks {
             'd-flex align-items-center'
         );
 
-        $html = $row('i/calendar', \html_writer::span(implode(' · ', $lines)));
+        // The course homepage shows the due date larger; activity pages keep it compact.
+        $dueclass = str_starts_with($PAGE->pagetype, 'course-view-') ? 'local-cgt-due-large' : '';
+        $html = $row('i/calendar', \html_writer::span(implode(' · ', $lines), $dueclass));
         if ($cycle->status === 'open') {
             $time = \html_writer::span(time_tracker::timeline($cycle), '', ['data-region' => 'local-cgt-time']);
             if (config::time_policy() === config::POLICY_UNRESOLVED) {

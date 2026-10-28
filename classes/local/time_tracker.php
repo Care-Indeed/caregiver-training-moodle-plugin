@@ -308,11 +308,10 @@ class time_tracker {
         }
         $required = config::required_seconds();
         $approved = self::approved_seconds($cycle);
-        // Completed rounds down and remaining rounds up, so the two always add up to the requirement.
+        // Course-wide total, labelled so it is not confused with an activity's own time requirement.
         return get_string('banner_time', config::COMPONENT, (object) [
             'approved' => $bold(self::short_duration(min($approved, $required))),
-            'required' => $bold(format_time($required)),
-            'remaining' => $bold(self::short_duration(max(0, $required - $approved), true)),
+            'required' => $bold(self::short_duration($required)),
         ]);
     }
 

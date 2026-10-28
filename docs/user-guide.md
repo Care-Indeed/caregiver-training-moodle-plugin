@@ -259,9 +259,9 @@ cycles.
 **Accounts.** New caregivers receive an email with their username and a **Set your password** button. The link
 expires for security. If it has expired, they use **Forgotten your username or password?** on the login page.
 
-**The banner.** Every page of the annual course shows the due date and either the days remaining, "Opens on …"
+**The banner.** Every page of the annual course shows the due date (larger on the course homepage) and either the days remaining, "Opens on …"
 before the window, "Overdue by … The course remains open until …" after the due date, or "Completed on …". It also
-shows a clock-face with the minutes completed, the minutes remaining and the percentage.
+shows a clock-face with the course total completed of the required time and the percentage.
 
 **Time counting.** Time counts only while the learner is on a countable activity page, the tab is visible and they
 have interacted recently (or media is playing). It doesn't count on the course page itself.
@@ -373,7 +373,7 @@ Run these on the server from the Moodle folder.
 
 | Command | Purpose |
 | --- | --- |
-| `php public/local/caregivertraining/cli/create_test_cycle.php --userid=42` | Links an existing user to a test AlayaCare ID and gives them a cycle, without the adapter. For testing only. Options: `--alayacareid`, `--cycleid`, `--anniversarydate`. |
+| `php public/local/caregivertraining/cli/create_test_cycle.php --userid=42` | Links an existing user to a test AlayaCare ID and gives them a cycle, without the adapter. For testing only. Options: `--alayacareid`, `--cycleid`, `--anniversarydate`, `--sendactivation` (queue the account setup email). |
 | `php public/local/caregivertraining/cli/apply_certificate_design.php` | Shows the configured certificate's design, its fingerprint and anything that blocks issuing it. Add `--from=<template id>` to compare with another design, and `--execute` to replace it. |
 
 ## Troubleshooting
