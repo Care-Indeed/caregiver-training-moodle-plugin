@@ -118,7 +118,7 @@ Your username: {username}
 To get started, choose your password using the link below. For your security, it expires in {expiry}.
 {link}
 
-If the link has expired, no problem. Go to the login page and select "Forgotten your username or password?"
+If the link has expired, no problem. Go to the login page and select "Lost password?"
 {loginurl}
 
 We\'re glad to have you with us.

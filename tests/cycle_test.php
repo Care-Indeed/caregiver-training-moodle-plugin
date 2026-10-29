@@ -242,6 +242,30 @@ final class cycle_test extends \advanced_testcase {
         $this->assertTrue(is_enrolled($context, $a->user->id, '', true));
     }
 
+    public function test_course_welcome_message_is_sent_once(): void {
+        global $DB;
+        // Welcome messages on, for the course's manual enrolment whether it exists yet or is added by the first cycle.
+        set_config('sendcoursewelcomemessage', ENROL_SEND_EMAIL_FROM_NOREPLY, 'enrol_manual');
+        $courseid = $this->fixture->course->id;
+        $DB->set_field('enrol', 'customint1', ENROL_SEND_EMAIL_FROM_NOREPLY, ['courseid' => $courseid, 'enrol' => 'manual']);
+        $a = $this->gen->create_learner();
+        $sink = $this->redirectMessages();
+
+        // A cycle that opens today is enrolled before it starts and again when it starts.
+        $this->cycle($a, 'A-1', 30);
+        cycle_manager::update_access(['cycleid' => 'A-1', 'userid' => $a->user->id, 'alayacareid' => $a->alayacareid,
+            'employmentstatus' => 'active', 'enrolmentstatus' => 'suspended']);
+        cycle_manager::update_access(['cycleid' => 'A-1', 'userid' => $a->user->id, 'alayacareid' => $a->alayacareid,
+            'employmentstatus' => 'active', 'enrolmentstatus' => 'active']);
+
+        $welcomes = array_filter($sink->get_messages(), fn($m) => $m->eventtype === 'enrolcoursewelcomemessage');
+        $this->assertCount(1, $welcomes);
+        $context = \context_course::instance($courseid);
+        $this->assertTrue(is_enrolled($context, $a->user->id, '', true));
+        $this->assertTrue(user_has_role_assignment($a->user->id, config::role_id(), $context->id));
+        $this->assertEquals(cycle_manager::get('A-1')->timeaccessend, $this->enrolment((int) $a->user->id)->timeend);
+    }
+
     /**
      * Complete a cycle through the real gates using the nominal policy.
      *

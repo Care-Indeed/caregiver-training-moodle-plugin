@@ -366,11 +366,23 @@ class cycle_manager {
      * @param \stdClass $course
      */
     public static function apply_enrolment(\stdClass $cycle, \stdClass $course): void {
+        global $DB;
         $instance = self::manual_instance($course);
+        $plugin = enrol_get_plugin('manual');
         $status = $cycle->enrolmentstatus === 'suspended' ? ENROL_USER_SUSPENDED : ENROL_USER_ACTIVE;
-        enrol_get_plugin('manual')->enrol_user(
+        // Moodle sends the course welcome message on every enrol_user() call, even for an existing enrolment, so an
+        // existing enrolment is updated in place and the learner gets the welcome message once.
+        $userid = (int) $cycle->userid;
+        if ($DB->record_exists('user_enrolments', ['enrolid' => $instance->id, 'userid' => $userid])) {
+            $plugin->update_user_enrol($instance, $userid, $status, (int) $cycle->timeopen, (int) $cycle->timeaccessend);
+            if ($roleid = config::role_id()) {
+                role_assign($roleid, $userid, \context_course::instance($course->id)->id);
+            }
+            return;
+        }
+        $plugin->enrol_user(
             $instance,
-            (int) $cycle->userid,
+            $userid,
             config::role_id(),
             (int) $cycle->timeopen,
             (int) $cycle->timeaccessend,
