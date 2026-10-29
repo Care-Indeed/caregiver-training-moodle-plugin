@@ -258,7 +258,9 @@ cycles.
 ## What learners see
 
 **Accounts.** New caregivers receive an email with their username and a **Set your password** button. The link
-expires for security. If it has expired, they use **Forgotten your username or password?** on the login page.
+expires for security after Moodle's password reset time (`$CFG->pwresettime`, in seconds), and the email states how long
+it lasts. The admin page only offers up to 4 hours, so a longer time, such as a week, is set in `config.php`. If it has expired, they use
+**Lost password?** on the login page.
 
 **The banner.** Every page of the annual course shows the due date (larger on the course homepage) and either the days remaining, "Opens on …"
 before the window, "Overdue by … The course remains open until …" after the due date, or "Completed on …". It also
