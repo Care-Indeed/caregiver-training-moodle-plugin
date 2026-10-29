@@ -204,6 +204,40 @@ final class binding_test extends \advanced_testcase {
         $this->assertSame($values['registrationdate'], $profile[profile_fields::REGISTRATIONDATE]);
     }
 
+    public function test_created_and_linked_learners_get_the_system_role(): void {
+        $syscontext = \context_system::instance();
+        $hca = create_role('Home Care Aide', 'hca', '', 'user');
+        set_role_contextlevels($hca, [CONTEXT_SYSTEM]);
+        set_config('systemroleid', $hca, 'local_caregivertraining');
+
+        $created = binding_manager::provision($this->payload());
+        $this->assertTrue(user_has_role_assignment($created['userid'], $hca, $syscontext->id));
+
+        $existing = $this->getDataGenerator()->create_user(['email' => 'drew@example.com']);
+        $linked = binding_manager::provision($this->payload(['alayacareid' => '1002', 'payrollnumber' => 'PR-1002',
+            'email' => 'drew@example.com', 'userid' => $existing->id]));
+        $this->assertSame('linked', $linked['status']);
+        $this->assertTrue(user_has_role_assignment($existing->id, $hca, $syscontext->id));
+
+        // A learner who lost the role gets it back on the next sync.
+        role_unassign($hca, $created['userid'], $syscontext->id);
+        $this->assertSame('unchanged', binding_manager::provision($this->payload())['status']);
+        $this->assertTrue(user_has_role_assignment($created['userid'], $hca, $syscontext->id));
+    }
+
+    public function test_no_system_role_when_unset_or_not_allowed_at_site_level(): void {
+        $syscontext = \context_system::instance();
+        set_config('systemroleid', 0, 'local_caregivertraining');
+        $created = binding_manager::provision($this->payload());
+        $this->assertCount(0, get_user_roles($syscontext, $created['userid'], false));
+
+        $courseonly = create_role('Course only', 'courseonly', '', 'user');
+        set_role_contextlevels($courseonly, [CONTEXT_COURSE]);
+        set_config('systemroleid', $courseonly, 'local_caregivertraining');
+        binding_manager::provision($this->payload());
+        $this->assertFalse(user_has_role_assignment($created['userid'], $courseonly, $syscontext->id));
+    }
+
     public function test_not_found_without_create_flag(): void {
         global $DB;
         $result = binding_manager::provision($this->payload(['createifmissing' => 0]));

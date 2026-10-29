@@ -70,6 +70,14 @@ if ($hassiteconfig) {
         0,
         fn() => admin_setup::role_choices()
     ));
+    // Defaults to this site's Home Care Aide role, so upgrading turns it on where that role exists.
+    $page->add(new admin_setting_configselect(
+        "{$component}/systemroleid",
+        $str('systemroleid'),
+        $str('systemroleid_desc'),
+        (int) $DB->get_field('role', 'id', ['shortname' => 'hca']),
+        fn() => admin_setup::system_role_choices()
+    ));
     $page->add(new admin_setting_configselect(
         "{$component}/compliancetimezone",
         $str('compliancetimezone'),

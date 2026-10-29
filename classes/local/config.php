@@ -77,6 +77,16 @@ class config {
     }
 
     /**
+     * Site-level role every provisioned learner holds, or 0 for none. Only roles that can be given at site level count.
+     *
+     * @return int
+     */
+    public static function system_role_id(): int {
+        $roleid = (int) self::get('systemroleid', 0);
+        return $roleid && in_array($roleid, get_roles_for_contextlevels(CONTEXT_SYSTEM)) ? $roleid : 0;
+    }
+
+    /**
      * Custom certificate course module id.
      *
      * @return int

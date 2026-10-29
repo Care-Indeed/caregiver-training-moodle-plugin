@@ -496,7 +496,8 @@ How the request is resolved:
      `usernametaken`.
 
 The `alayacareid` is also copied into the learner's locked **AlayaCare ID** profile field (`cgt_alayacareid`), so it
-shows on the profile and can be searched by administrators.
+shows on the profile and can be searched by administrators. When **Learner system role** is set, every successful
+call also gives the learner that role at site level (for example Home Care Aide). It is never removed.
 
 ### `local_caregivertraining_v1_upsert_cycle`
 
