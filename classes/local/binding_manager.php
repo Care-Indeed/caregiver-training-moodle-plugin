@@ -339,6 +339,11 @@ class binding_manager {
                 profile_fields::REGISTRATIONDATE => self::attr($p['registrationdate'] ?? null),
             ]);
 
+            // Every call makes sure of the site role, so learners provisioned before it was set get it on the next sync.
+            if ($systemroleid = config::system_role_id()) {
+                role_assign($systemroleid, (int) $binding->userid, \context_system::instance()->id);
+            }
+
             if (!empty($p['sendactivation'])) {
                 $activation = activation::queue((int) $binding->userid);
             }

@@ -63,6 +63,23 @@ class admin_setup {
     }
 
     /**
+     * Roles that can be given at site level.
+     *
+     * @return array<int,string>
+     */
+    public static function system_role_choices(): array {
+        $choices = [0 => get_string('systemroleid_none', config::COMPONENT)];
+        $systemroles = get_roles_for_contextlevels(CONTEXT_SYSTEM);
+        $names = role_fix_names(get_all_roles(), \context_system::instance(), ROLENAME_ORIGINAL, true);
+        foreach ($names as $roleid => $name) {
+            if (in_array($roleid, $systemroles)) {
+                $choices[$roleid] = $name;
+            }
+        }
+        return $choices;
+    }
+
+    /**
      * Custom Certificate activities in the annual course, keeping a saved value that is no longer in it.
      *
      * @return array<int,string>

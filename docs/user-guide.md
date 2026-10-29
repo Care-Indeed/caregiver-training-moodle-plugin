@@ -147,6 +147,7 @@ that don't apply are hidden: for example, the activity list only appears once yo
 | --- | --- |
 | Annual training course | Pick the course (type to search). Save before choosing the certificate. |
 | Learner role | **Default (Student)**, or another course role. |
+| Learner system role | The site-level role caregivers get when the adapter creates or links them. Defaults to **Home Care Aide** where that role exists; **None** turns it off. It is never removed.
 | Compliance timezone | The timezone due dates are counted in, for example `America/Los_Angeles`. |
 | Keep completion records for (years) | At least 3. |
 | Certificate activity | The Custom certificate activity of the annual course. Required. |
