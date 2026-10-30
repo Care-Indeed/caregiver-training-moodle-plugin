@@ -54,10 +54,10 @@ final class records_test extends \advanced_testcase {
 
         // Kept grades win, at completion over before the reset; evidence from before the cycle is ignored.
         $snapshot = fn(string $type, float $grade) => (object) ['id' => 0, 'cycleid' => $cycle->id, 'type' => $type,
-            'payload' => json_encode(['grades' => [
+            'payload' => json_encode(['data' => ['grades' => [
                 ['itemtype' => 'mod', 'finalgrade' => 5, 'grademax' => 10],
                 ['itemtype' => 'course', 'finalgrade' => $grade, 'grademax' => 100],
-            ]])];
+            ]]])];
         $this->assertSame(
             format_float(10, 2) . ' / ' . format_float(100, 2),
             records::course_total($cycle, [$snapshot('prereset', 10)])
@@ -74,5 +74,27 @@ final class records_test extends \advanced_testcase {
         // A finished cycle without kept grades has no course total.
         $cycle->status = 'completed';
         $this->assertSame('', records::course_total($cycle, []));
+    }
+
+    public function test_completion_keeps_the_course_total(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $gen = $this->getDataGenerator()->get_plugin_generator('local_caregivertraining');
+        $fixture = $gen->create_annual_course();
+        $learner = $gen->create_learner();
+        $due = (new \DateTimeImmutable('now', config::timezone()))->modify('+30 days')->format('Y-m-d');
+        cycle_manager::upsert(['cycleid' => 'A-1', 'userid' => $learner->user->id, 'alayacareid' => $learner->alayacareid,
+            'hiredate' => '2020-01-01', 'anniversarydate' => $due]);
+        set_config('timepolicy', config::POLICY_NOMINAL, 'local_caregivertraining');
+        set_config('nominaldurations', json_encode(array_fill_keys($fixture->cms, 4500)), 'local_caregivertraining');
+        $gen->create_evidence($fixture, (int) $learner->user->id);
+        $cycle = cycle_manager::get('A-1');
+        $this->assertTrue(\local_caregivertraining\local\completion_manager::evaluate((int) $cycle->id));
+
+        $cycle = cycle_manager::get('A-1');
+        $snapshots = $DB->get_records('local_cgt_snapshot', ['cycleid' => $cycle->id, 'type' => 'completion']);
+        $this->assertCount(1, $snapshots);
+        $this->assertMatchesRegularExpression('~^\d+[.,]\d{2} / \d+[.,]\d{2}$~', records::course_total($cycle, $snapshots));
     }
 }

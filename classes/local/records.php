@@ -109,7 +109,7 @@ class records {
         }
         $grade = null;
         if ($snapshot = $kept['completion'] ?? $kept['prereset'] ?? null) {
-            foreach (json_decode($snapshot->payload, true)['grades'] ?? [] as $row) {
+            foreach (json_decode($snapshot->payload, true)['data']['grades'] ?? [] as $row) {
                 if ($row['itemtype'] === 'course') {
                     $grade = [$row['finalgrade'], $row['grademax']];
                 }
