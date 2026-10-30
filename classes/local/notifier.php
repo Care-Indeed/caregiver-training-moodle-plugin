@@ -185,6 +185,7 @@ class notifier {
             '{certificatecode}' => (string) $cycle->certificatecode,
             '{certificateurl}' => self::certificate_link($published),
             '{loginurl}' => (new \moodle_url('/login/index.php'))->out(false),
+            '{lostpasswordurl}' => (new \moodle_url('/login/forgot_password.php'))->out(false),
             '{quickstartguideurl}' => config::quick_start_guide_url(),
         ];
         return strtr($text, $replacements);

@@ -16,7 +16,10 @@
 
 namespace local_caregivertraining;
 
+use local_caregivertraining\local\activation;
 use local_caregivertraining\local\binding_manager;
+use local_caregivertraining\local\config;
+use local_caregivertraining\local\cycle_manager;
 use local_caregivertraining\local\profile_fields;
 
 /**
@@ -28,6 +31,7 @@ use local_caregivertraining\local\profile_fields;
  */
 #[\PHPUnit\Framework\Attributes\CoversClass(binding_manager::class)]
 #[\PHPUnit\Framework\Attributes\CoversClass(profile_fields::class)]
+#[\PHPUnit\Framework\Attributes\CoversClass(activation::class)]
 final class binding_test extends \advanced_testcase {
     protected function setUp(): void {
         parent::setUp();
@@ -238,6 +242,15 @@ final class binding_test extends \advanced_testcase {
         $this->assertFalse(user_has_role_assignment($created['userid'], $courseonly, $syscontext->id));
     }
 
+    public function test_plus_address_gets_a_valid_username_and_keeps_its_email(): void {
+        global $DB;
+        $result = binding_manager::provision($this->payload(['email' => 'Casey+Test@example.com']));
+        $this->assertSame('created', $result['status']);
+        $user = $DB->get_record('user', ['id' => $result['userid']]);
+        $this->assertSame('caseytest@example.com', $user->username);
+        $this->assertSame('Casey+Test@example.com', $user->email);
+    }
+
     public function test_not_found_without_create_flag(): void {
         global $DB;
         $result = binding_manager::provision($this->payload(['createifmissing' => 0]));
@@ -245,10 +258,30 @@ final class binding_test extends \advanced_testcase {
         $this->assertFalse($DB->record_exists('user', ['email' => 'casey@example.com']));
     }
 
-    public function test_activation_uses_time_limited_reset_token(): void {
+    public function test_activation_waits_for_training_and_uses_time_limited_reset_token(): void {
         global $DB;
+        $this->getDataGenerator()->get_plugin_generator('local_caregivertraining')->create_annual_course();
+        $taskclass = '\\' . \local_caregivertraining\task\send_activation::class;
+
+        // No training is open yet, so the account is created quietly.
         $result = binding_manager::provision($this->payload(['sendactivation' => 1]));
-        $this->assertSame('queued', $result['activation']);
+        $this->assertSame('deferred', $result['activation']);
+        $this->assertSame(0, $DB->count_records('task_adhoc', ['classname' => $taskclass]));
+
+        // The email goes out when the training opens, once.
+        $due = (new \DateTimeImmutable('now', config::timezone()))->modify('+30 days')->format('Y-m-d');
+        cycle_manager::upsert(['cycleid' => '1001-A', 'userid' => $result['userid'], 'alayacareid' => '1001',
+            'hiredate' => '2020-01-01', 'anniversarydate' => $due]);
+        $this->assertSame(1, $DB->count_records('task_adhoc', ['classname' => $taskclass]));
+        $this->assertNull(get_user_preferences(activation::PENDING, null, $result['userid']));
+        $this->assertSame(
+            'queued',
+            binding_manager::provision($this->payload(['sendactivation' => 1]))['activation'],
+            'with training open, a new request is sent straight away'
+        );
+        $DB->delete_records('task_adhoc', ['classname' => $taskclass]);
+        activation::queue($result['userid']);
+
         $sink = $this->redirectEmails();
         $this->expectOutputRegex('/Activation email sent/');
         $this->runAdhocTasks(\local_caregivertraining\task\send_activation::class);
@@ -263,6 +296,8 @@ final class binding_test extends \advanced_testcase {
         $username = $DB->get_field('user', 'username', ['id' => $result['userid']]);
         $this->assertStringContainsString('Your username: ' . $username, $body);
         $this->assertStringNotContainsString('{expiry}', $body, 'every placeholder is filled in');
+        $this->assertStringContainsString('enter your email to receive a new password reset link', $body);
+        $this->assertStringContainsString('/login/forgot_password.php' . "\n", str_replace("\r", '', $body));
         $this->assertTrue($DB->record_exists('user_password_resets', ['userid' => $result['userid']]));
 
         $DB->set_field('user', 'lastlogin', time(), ['id' => $result['userid']]);

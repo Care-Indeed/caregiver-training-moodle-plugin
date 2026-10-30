@@ -24,6 +24,41 @@ namespace local_caregivertraining\local;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class activation {
+    /** User preference marking a setup email that waits for the learner's training to open. */
+    const PENDING = 'local_caregivertraining_activationpending';
+
+    /**
+     * Ask for the setup email. It is queued now if the learner's training is open, otherwise it waits for the cycle to
+     * open, so caregivers don't get an account months before they have anything to do in it.
+     *
+     * @param int $userid
+     * @return string queued|deferred|alreadyactive
+     */
+    public static function request(int $userid): string {
+        global $DB;
+        if ($DB->record_exists('local_cgt_cycle', ['userid' => $userid, 'status' => 'open'])) {
+            return self::queue($userid);
+        }
+        $user = $DB->get_record('user', ['id' => $userid], 'id, lastlogin, firstaccess', MUST_EXIST);
+        if (!empty($user->lastlogin) || !empty($user->firstaccess)) {
+            return 'alreadyactive';
+        }
+        set_user_preference(self::PENDING, 1, $userid);
+        return 'deferred';
+    }
+
+    /**
+     * Send a setup email that was waiting for the learner's training to open.
+     *
+     * @param int $userid
+     */
+    public static function release(int $userid): void {
+        if (get_user_preferences(self::PENDING, 0, $userid)) {
+            unset_user_preference(self::PENDING, $userid);
+            self::queue($userid);
+        }
+    }
+
     /**
      * Queue an activation email unless the learner has already logged in.
      *
@@ -67,6 +102,7 @@ class activation {
             '{expiry}' => $expiry,
             '{link}' => $link,
             '{loginurl}' => $CFG->wwwroot . '/login/index.php',
+            '{lostpasswordurl}' => $CFG->wwwroot . '/login/forgot_password.php',
             '{quickstartguideurl}' => config::quick_start_guide_url(),
         ];
         $component = config::COMPONENT;

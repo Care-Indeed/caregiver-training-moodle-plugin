@@ -58,8 +58,9 @@ Options:
   --anniversarydate=Y-m-d
                        Anniversary (due) date (default 30 days after today). The window opens
                        60 days before it and access ends 14 days after it.
-  --sendactivation     Queue the account setup email, as the adapter does for new learners. Skipped
-                       when the learner has already logged in. Sent by the next cron run.
+  --sendactivation     Ask for the account setup email, as the adapter does for new learners: sent by
+                       the next cron run if the cycle is open, otherwise held until it opens. Skipped
+                       when the learner has already logged in.
   -h, --help           Print this help
 
 Example:
@@ -101,8 +102,11 @@ try {
 
 $cycle = $result['cycle'];
 if ($options['sendactivation']) {
-    if (activation::queue($userid) === 'queued') {
+    $activation = activation::request($userid);
+    if ($activation === 'queued') {
         cli_writeln('Account setup email queued; it is sent by the next cron run.');
+    } else if ($activation === 'deferred') {
+        cli_writeln('Account setup email held until the cycle opens.');
     } else {
         cli_writeln('Account setup email not queued: the learner has already logged in.');
     }

@@ -464,6 +464,7 @@ class cycle_manager {
             $cycle->timemodified = time();
             $DB->update_record('local_cgt_cycle', $cycle);
             self::apply_enrolment($cycle, $course);
+            activation::release((int) $cycle->userid);
 
             $context = \context_course::instance($course->id);
             if ($resetdone) {

@@ -62,6 +62,7 @@ $string['col_accessend'] = 'Access ends';
 $string['col_alayacareid'] = 'AlayaCare ID';
 $string['col_certificate'] = 'Certificate';
 $string['col_completed'] = 'Completed';
+$string['col_coursetotal'] = 'Course total';
 $string['col_cycleid'] = 'Cycle ID';
 $string['col_cycles'] = 'Cycles';
 $string['col_details'] = 'Details';
@@ -98,6 +99,7 @@ $string['csv_archived'] = 'Archived';
 $string['csv_certificatecode'] = 'Certificate code';
 $string['csv_certificateurl'] = 'Certificate verification link';
 $string['csv_completedon'] = 'Completed on';
+$string['csv_coursetotal'] = 'Course total grade';
 $string['csv_cycleid'] = 'Cycle ID';
 $string['csv_duedate'] = 'Due date (anniversary)';
 $string['csv_employee'] = 'Employee name';
@@ -118,8 +120,8 @@ Your username: {username}
 To get started, choose your password using the link below. For your security, it expires in {expiry}.
 {link}
 
-If the link has expired, no problem. Go to the login page and select "Lost password?"
-{loginurl}
+If the link has expired, no problem. Go to the lost password page and enter your email to receive a new password reset link.
+{lostpasswordurl}
 
 We\'re glad to have you with us.
 CI Institute of Nursing';
@@ -319,6 +321,7 @@ $string['privacy:metadata:local_cgt_snapshot:userid'] = 'Moodle user id.';
 $string['privacy:metadata:local_cgt_timesession'] = 'Server-accounted training time per browser session.';
 $string['privacy:metadata:local_cgt_timesession:creditedseconds'] = 'Seconds credited.';
 $string['privacy:metadata:local_cgt_timesession:userid'] = 'Moodle user id.';
+$string['privacy:metadata:preference:activationpending'] = 'Whether the account setup email is waiting for the learner\'s training to open.';
 $string['privacy:metadata:s3'] = 'When certificate storage is configured, completed certificates are published to an S3 bucket at an unguessable public address.';
 $string['privacy:metadata:s3:certificate'] = 'The certificate of completion as a PDF and an image, showing the learner\'s name, completion date and certificate code.';
 $string['privacy:retained'] = 'Records inside the retention period are kept to meet the compliance retention obligation.';
@@ -383,7 +386,7 @@ $string['task_deliver_outbox'] = 'Deliver caregiver training events to the adapt
 $string['task_process_cycles'] = 'Start due caregiver cycles and reconcile completion';
 $string['task_send_notifications'] = 'Send caregiver training notifications';
 $string['template_body'] = 'Message';
-$string['template_desc'] = 'Change the wording of the emails. Empty a field to go back to the default wording. The main link in each message (for example {courseurl}) is shown as a button. Placeholders: {firstname}, {lastname}, {opendate}, {duedate}, {accessenddate}, {courseurl}, {cycleid}, {certificatecode}, {certificateurl}, {loginurl}, {quickstartguideurl}. The account setup email also has {username}, {expiry} and {link}.';
+$string['template_desc'] = 'Change the wording of the emails. Empty a field to go back to the default wording. The main link in each message (for example {courseurl}) is shown as a button. Placeholders: {firstname}, {lastname}, {opendate}, {duedate}, {accessenddate}, {courseurl}, {cycleid}, {certificatecode}, {certificateurl}, {loginurl}, {lostpasswordurl}, {quickstartguideurl}. The account setup email also has {username}, {expiry} and {link}.';
 $string['template_subject'] = 'Subject';
 $string['timepolicy'] = 'How time is counted';
 $string['timepolicy_desc'] = '<strong>Not decided yet</strong>: time is recorded but nobody can complete. <strong>Time actually spent</strong>: the time learners are active in the selected activities. <strong>Set time per activity</strong>: each selected activity is worth a fixed time once it is complete.';

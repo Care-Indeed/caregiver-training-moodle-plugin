@@ -461,7 +461,7 @@ fields. It never links an account by email on its own, and never creates an acco
 | `hcanumber` | string or null | no | HCA number. `null` leaves it unchanged, `""` clears it. |
 | `registrationdate` | string or null | no | HCA registration date, `YYYY-MM-DD`. |
 | `createifmissing` | bool | no, default `false` | Create an account when nothing matches. |
-| `sendactivation` | bool | no, default `false` | Queue the time-limited activation email for accounts that have never been used. |
+| `sendactivation` | bool | no, default `false` | Send the time-limited account setup email to an account that has never been used: now if the learner's training is open, otherwise when it opens. |
 
 Response:
 
@@ -470,7 +470,7 @@ Response:
 | `status` | `created`, `linked`, `updated`, `unchanged` or `notfound`. |
 | `userid` | Moodle user id, or `0` for `notfound`. |
 | `bindingid` | Binding id, or `0` for `notfound`. |
-| `activation` | `queued`, `alreadyactive` or `notrequested`. |
+| `activation` | `queued` (training is open, the email goes out on the next cron run), `deferred` (held until the learner's training opens), `alreadyactive` or `notrequested`. |
 | `replayed` | `true` when returned from a repeated idempotency key. |
 
 How the request is resolved:
@@ -491,8 +491,9 @@ How the request is resolved:
    - If one account uses the email, fail with `existingaccount`. Confirm it is the same person, then call again with
      that `userid`.
    - If `createifmissing` is `false`, return `notfound` without changing anything.
-   - Otherwise create a manual-auth account (username is the lowercased email, with an unusable password) and return
-     `created`. Missing `email`, `firstname` or `lastname` fails with `invalidparameter`. A username clash fails with
+   - Otherwise create a manual-auth account (username is the lowercased email without characters Moodle doesn't
+     allow in usernames, so `Casey+Test@example.com` becomes `caseytest@example.com`; the email is kept as given;
+     the password is unusable) and return `created`. Missing `email`, `firstname` or `lastname` fails with `invalidparameter`. A username clash fails with
      `usernametaken`.
 
 The `alayacareid` is also copied into the learner's locked **AlayaCare ID** profile field (`cgt_alayacareid`), so it
@@ -951,7 +952,7 @@ php public/local/caregivertraining/cli/create_test_cycle.php --userid=42
 | `--alayacareid` | `TEST-{userid}` | AlayaCare id to link. Ignored if the user is already linked. |
 | `--cycleid` | `TEST-{userid}-{anniversarydate}` | Cycle ID. |
 | `--anniversarydate` | 30 days from today | Anniversary (due) date, `YYYY-MM-DD`. The window opens 60 days before it, so the default cycle opens immediately. |
-| `--sendactivation` | off | Queue the account setup email, like `sendactivation` on `provision_learner`. Skipped if the learner has already logged in. The next cron run sends it. |
+| `--sendactivation` | off | Ask for the account setup email, like `sendactivation` on `provision_learner`: queued if the cycle is open (the next cron run sends it), otherwise held until it opens. Skipped if the learner has already logged in. |
 | `-h`, `--help` | | Print help. |
 
 It goes through the same code as `provision_learner` and `upsert_cycle`, so the same conflict rules and errors apply.

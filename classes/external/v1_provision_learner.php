@@ -120,7 +120,7 @@ class v1_provision_learner extends adapter_api {
             'status' => new external_value(PARAM_ALPHA, 'created, linked, updated, unchanged or notfound'),
             'userid' => new external_value(PARAM_INT, 'Moodle user id'),
             'bindingid' => new external_value(PARAM_INT, 'Binding id'),
-            'activation' => new external_value(PARAM_ALPHA, 'queued, alreadyactive or notrequested'),
+            'activation' => new external_value(PARAM_ALPHA, 'queued, deferred, alreadyactive or notrequested'),
             'replayed' => new external_value(PARAM_BOOL, 'True when this response was replayed for a repeated key'),
         ]);
     }

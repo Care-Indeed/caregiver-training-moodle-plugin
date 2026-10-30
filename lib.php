@@ -48,3 +48,28 @@ function local_caregivertraining_pluginfile($course, $cm, $context, $filearea, $
     }
     send_stored_file($file, 0, 0, true, $options);
 }
+
+/**
+ * Link Training records from the annual course's Reports page, next to Activity completion.
+ *
+ * @param navigation_node $navigation the course's settings node
+ * @param stdClass $course
+ * @param context_course $context
+ */
+function local_caregivertraining_extend_navigation_course(navigation_node $navigation, stdClass $course, context_course $context) {
+    if (
+        (int) $course->id !== \local_caregivertraining\local\config::course_id() ||
+        !has_capability('local/caregivertraining:viewreports', context_system::instance())
+    ) {
+        return;
+    }
+    $parent = $navigation->get('coursereports') ?: $navigation;
+    $parent->add(
+        get_string('adminview', 'local_caregivertraining'),
+        new moodle_url('/local/caregivertraining/index.php'),
+        navigation_node::TYPE_SETTING,
+        null,
+        'local_caregivertraining_records',
+        new pix_icon('i/report', '')
+    );
+}
