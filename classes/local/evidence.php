@@ -143,7 +143,10 @@ class evidence {
      */
     public static function capture(int $userid, \stdClass $course, ?\stdClass $cycle): array {
         global $CFG, $DB;
+        require_once($CFG->libdir . '/gradelib.php');
         $p = ['c' => $course->id, 'u' => $userid];
+        // Totals are recalculated lazily, so bring the learner's course total up to date before keeping it.
+        grade_regrade_final_grades($course->id, $userid);
 
         $data = [
             'coursecompletion' => self::rows('SELECT id, timeenrolled, timestarted, timecompleted, reaggregate
