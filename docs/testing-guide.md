@@ -137,7 +137,7 @@ window to log in as a caregiver while staying logged in as administrator in your
 
 **You should see** a banner at the top: *"Due November 7, 2026 · 30 days remaining"* (30 days from the day the
 cycle was created), and below it
-*"Course Total: 0 mins of 10 mins · About 0%"* with a small round progress circle.
+*"Course Total: 0 mins of 10 mins · 0%"* with a small round progress circle.
 
 - [ ] Banner shows the right due date and days remaining.
 
@@ -169,7 +169,7 @@ one."* There is no button on the course page or on the last activity.
 
 1. Keep caregiver.one active in the course until the banner reaches 10 minutes.
 
-**You should see** *"Course Total: 10 mins of 10 mins · About 100%"*, and the number stops at 10 even
+**You should see** *"Course Total: 10 mins of 10 mins · 100%"*, and the number stops at 10 even
 if you keep working.
 
 - [ ] Time stops at the requirement and never shows more than 10 of 10.
