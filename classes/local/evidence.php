@@ -143,7 +143,12 @@ class evidence {
      */
     public static function capture(int $userid, \stdClass $course, ?\stdClass $cycle): array {
         global $CFG, $DB;
+        require_once($CFG->libdir . '/gradelib.php');
         $p = ['c' => $course->id, 'u' => $userid];
+        // Moodle recalculates totals lazily (as the gradebook does on view), so bring them up to date before keeping them.
+        if (grade_needs_regrade_final_grades($course->id)) {
+            grade_regrade_final_grades($course->id);
+        }
 
         $data = [
             'coursecompletion' => self::rows('SELECT id, timeenrolled, timestarted, timecompleted, reaggregate

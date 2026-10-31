@@ -111,5 +111,28 @@ function xmldb_local_caregivertraining_upgrade($oldversion) {
 
         upgrade_plugin_savepoint(true, 2026100800, 'local', 'caregivertraining');
     }
+
+    if ($oldversion < 2026103101) {
+        // The settings page saved the default setup email wording, which kept the old "if the link has expired" line.
+        // Empty it, so the current default is used, unless an administrator changed it.
+        $olddefaults = [
+            "Hello {firstname},\n\nWelcome! We've created your CI Institute of Nursing account so you can complete your " .
+                "various trainings.\n\nYour username: {username}\n\nTo get started, choose your password using the link " .
+                "below. For your security, it expires in {expiry}.\n{link}\n\nIf the link has expired, no problem. Go to " .
+                "the login page and select \"Forgotten your username or password?\"\n{loginurl}\n\nWe're glad to have you " .
+                "with us.\nCI Institute of Nursing",
+            "Hello {firstname},\n\nWelcome! We've created your CI Institute of Nursing account so you can complete your " .
+                "various trainings.\n\nYour username: {username}\n\nTo get started, choose your password using the link " .
+                "below. For your security, it expires in {expiry}.\n{link}\n\nIf the link has expired, no problem. Go to " .
+                "the login page and select \"Lost password?\"\n{loginurl}\n\nWe're glad to have you with us.\nCI Institute " .
+                "of Nursing",
+        ];
+        $normalise = fn(string $text): string => preg_replace('/\s+/', ' ', trim($text));
+        $saved = (string) get_config('local_caregivertraining', 'template_body_activation');
+        if (in_array($normalise($saved), array_map($normalise, $olddefaults), true)) {
+            set_config('template_body_activation', '', 'local_caregivertraining');
+        }
+        upgrade_plugin_savepoint(true, 2026103101, 'local', 'caregivertraining');
+    }
     return true;
 }

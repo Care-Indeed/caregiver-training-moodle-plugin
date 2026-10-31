@@ -31,8 +31,8 @@ class export {
      */
     public static function columns(): array {
         $keys = ['employee', 'alayacareid', 'payrollnumber', 'hcanumber', 'registrationdate', 'trainingyear', 'cycleid',
-            'status', 'hiredate', 'duedate', 'accessenddate', 'completedon', 'ontime', 'approvedhours', 'certificatecode',
-            'certificateurl', 'evidence', 'archived'];
+            'status', 'hiredate', 'duedate', 'accessenddate', 'completedon', 'ontime', 'approvedhours', 'coursetotal',
+            'certificatecode', 'certificateurl', 'evidence', 'archived'];
         $columns = [];
         foreach ($keys as $key) {
             $columns[$key] = get_string('csv_' . $key, config::COMPONENT);
@@ -102,6 +102,7 @@ class export {
                     ? (new \DateTimeImmutable('@' . $cycle->timecompleted))->setTimezone($tz)->format('Y-m-d H:i') : '',
                 'ontime' => $completed ? ((int) $cycle->timecompleted <= (int) $cycle->timedue ? $yes : $no) : '',
                 'approvedhours' => $completed ? number_format($cycle->approvedseconds / HOURSECS, 2, '.', '') : '',
+                'coursetotal' => records::course_total($cycle, $snapshots),
                 'certificatecode' => (string) $cycle->certificatecode,
                 'certificateurl' => $cycle->certificatecode ? completion_manager::verify_url($cycle) : '',
                 'evidence' => implode('; ', $evidence[$cycle->id] ?? []),

@@ -345,7 +345,7 @@ class binding_manager {
             }
 
             if (!empty($p['sendactivation'])) {
-                $activation = activation::queue((int) $binding->userid);
+                $activation = activation::request((int) $binding->userid);
             }
 
             \local_caregivertraining\event\learner_provisioned::create([
@@ -429,7 +429,9 @@ class binding_manager {
      */
     private static function create_user(array $p, string $email): \stdClass {
         global $CFG, $DB;
-        $username = \core_text::strtolower($email);
+        // Usernames only allow some characters (no "+" unless extended characters are on), so drop the rest. The
+        // account keeps the email exactly as given.
+        $username = clean_param(\core_text::strtolower($email), PARAM_USERNAME);
         if ($DB->record_exists('user', ['username' => $username, 'mnethostid' => $CFG->mnet_localhost_id])) {
             throw new \moodle_exception('error:usernametaken', config::COMPONENT);
         }

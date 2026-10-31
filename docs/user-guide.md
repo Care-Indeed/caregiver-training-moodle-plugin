@@ -257,10 +257,24 @@ cycles.
 
 ## What learners see
 
-**Accounts.** New caregivers receive an email with their username and a **Set your password** button. The link
-expires for security after Moodle's password reset time (`$CFG->pwresettime`, in seconds), and the email states how long
-it lasts. The admin page only offers up to 4 hours, so a longer time, such as a week, is set in `config.php`. If it has expired, they use
-**Lost password?** on the login page.
+**Accounts.** Caregivers receive an email with their username and a **Set your password** button when their annual
+training opens (60 days before the due date). An account the adapter creates earlier waits quietly: the email is held
+until the training window opens and then sent once; later years only send the "Now Open" email. The link expires for
+security after Moodle's password reset time (`$CFG->pwresettime`, in seconds), and the email states how long it lasts.
+The admin page only offers up to 4 hours, so a longer time, such as a week, is set in `config.php`. If it has expired,
+the email links to the lost password page, where they enter their email to get a new link.
+
+**Lesson time and the course total.** They are counted differently, so they can disagree:
+
+- A lesson's "Spend at least …" requirement is Moodle's own lesson rule. It adds up the time from opening the lesson
+  to the last lesson page loaded, whether or not the learner was active, and ignores switching tabs. Time spent on the
+  last page before leaving isn't counted until another lesson page loads.
+- The course total ("Course Total: … of …") is this plugin's timer. It counts only while the course tab is visible
+  and either a video is playing or the learner was active in the last 2 minutes (**Idle after**), and it keeps
+  counting on the last page.
+
+So a lesson can show its time as met while the course total grew less, or the other way round. Both have to be met:
+each lesson's minimum to complete that lesson, and the course total for the annual training.
 
 **The banner.** Every page of the annual course shows the due date (larger on the course homepage) and either the days remaining, "Opens on …"
 before the window, "Overdue by … The course remains open until …" after the due date, or "Completed on …". It also
@@ -311,9 +325,9 @@ Before the yearly reset, 2027-01-20 (verified)". Each download is logged.
 
 | Email | When | Button | Default |
 | --- | --- | --- | --- |
-| Account setup | When the adapter creates a caregiver account and asks for an activation email. | Set Your Password | Sent when requested, unless the learner has already logged in |
+| Account setup | When the caregiver's training opens, if the adapter asked for it when creating the account; straight away if the training is already open. | Set Your Password | Sent when requested, unless the learner has already logged in |
 | Training is open | When the cycle opens, 60 days before the due date. | Continue Training | On |
-| Reminder | The configured number of days before the due date, for example 30 and 14. | Continue Training | Off (no days set) |
+| Reminder | The configured number of days before the due date, for example 30 and 14. A cycle created after a reminder's day skips it, and if several are missed only the latest is sent. | Continue Training | Off (no days set) |
 | Due today | On the due date. | Continue Training | Off |
 | Overdue | Once after the due date, if not complete. | Continue Training | Off |
 | Completed | When the cycle completes, with the certificate PDF attached. | View Certificate | On |
@@ -331,7 +345,8 @@ platform support email. The phone number can be tapped to call and the addresses
 under **Notifications → Email footer**; the Quick Start Guide line only appears once its link is set.
 
 Moodle's own course welcome email ("you are enrolled in the course …") comes from the course's manual enrolment
-settings, not from this plugin. To turn it off, go to the course's **Participants → Enrolment methods**, edit
+settings, not from this plugin. It is sent when the caregiver is enrolled, which happens when their training opens, so it
+arrives with the account setup and "Now Open" emails. To turn it off, go to the course's **Participants → Enrolment methods**, edit
 **Manual enrolments**, and set **Send course welcome message** to No.
 
 ### Placeholders
@@ -347,6 +362,7 @@ You can use these in the subject and message settings:
 | `{certificatecode}` | The certificate code (completion only). |
 | `{certificateurl}` | The certificate: the public PDF when S3 storage is set, otherwise the certificate activity. |
 | `{loginurl}` | The login page. |
+| `{lostpasswordurl}` | The lost password page, where learners request a new password reset link. |
 | `{quickstartguideurl}` | The Quick Start Guide link from the email footer settings. |
 | `{username}`, `{expiry}`, `{link}` | Account setup only: the username, how long the link lasts, and the set-password link. |
 

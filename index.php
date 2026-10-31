@@ -165,8 +165,8 @@ if ($view === 'employees' && $employee) {
 
     $table = new flexible_table('local_caregivertraining_history');
     $table->define_baseurl($baseurl);
-    $columns = ['trainingyear', 'cycleid', 'status', 'due', 'accessend', 'completed', 'time', 'certificate', 'evidence',
-        'actions'];
+    $columns = ['trainingyear', 'cycleid', 'status', 'due', 'accessend', 'completed', 'time', 'coursetotal', 'certificate',
+        'evidence', 'actions'];
     $table->define_columns($columns);
     $table->define_headers(array_map(fn($column) => $column === 'actions'
         ? html_writer::span(get_string('actions'), 'visually-hidden')
@@ -219,6 +219,7 @@ if ($view === 'employees' && $employee) {
             $date(cycle_manager::access_end_date($c->anniversarydate)),
             $datetime($c->timecompleted),
             $c->status === 'completed' ? format_time((int) $c->approvedseconds) : '-',
+            records::course_total($c, $snapshots) ?: '-',
             $c->certificatecode ? html_writer::link(completion_manager::verify_url($c), s($c->certificatecode)) : '-',
             $evidence ? implode('', $evidence) : '-',
             $actionmenu($actions),

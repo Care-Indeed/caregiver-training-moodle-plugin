@@ -316,7 +316,8 @@ class cycle_manager {
             }
 
             if ($cycle->status === 'scheduled') {
-                self::ensure_future_enrolment($cycle, $course);
+                // The learner is enrolled when the training opens, not before, so Moodle's course welcome message
+                // arrives with the account setup email instead of weeks ahead of it.
                 if ($cycle->timeopen <= time()) {
                     $cycle = self::start($cycle);
                 }
@@ -334,28 +335,6 @@ class cycle_manager {
             return ['action' => $action, 'cycle' => self::export(self::get($cycleid))];
         } finally {
             $lock->release();
-        }
-    }
-
-    /**
-     * Before the window opens, create an enrolment that only starts on the open date. An existing
-     * enrolment from a prior cycle is left as it is until the reset runs at open time.
-     *
-     * @param \stdClass $cycle
-     * @param \stdClass $course
-     */
-    private static function ensure_future_enrolment(\stdClass $cycle, \stdClass $course): void {
-        global $DB;
-        $instance = self::manual_instance($course);
-        if (!$DB->record_exists('user_enrolments', ['enrolid' => $instance->id, 'userid' => $cycle->userid])) {
-            enrol_get_plugin('manual')->enrol_user(
-                $instance,
-                (int) $cycle->userid,
-                config::role_id(),
-                (int) $cycle->timeopen,
-                (int) $cycle->timeaccessend,
-                ENROL_USER_ACTIVE
-            );
         }
     }
 
@@ -464,6 +443,7 @@ class cycle_manager {
             $cycle->timemodified = time();
             $DB->update_record('local_cgt_cycle', $cycle);
             self::apply_enrolment($cycle, $course);
+            activation::release((int) $cycle->userid);
 
             $context = \context_course::instance($course->id);
             if ($resetdone) {

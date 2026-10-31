@@ -34,7 +34,8 @@ use core_privacy\local\request\writer;
 class provider implements
     \core_privacy\local\metadata\provider,
     \core_privacy\local\request\core_userlist_provider,
-    \core_privacy\local\request\plugin\provider {
+    \core_privacy\local\request\plugin\provider,
+    \core_privacy\local\request\user_preference_provider {
     /**
      * Metadata.
      *
@@ -87,7 +88,27 @@ class provider implements
             'certificate' => 'privacy:metadata:s3:certificate',
         ], 'privacy:metadata:s3');
         $collection->add_subsystem_link('core_files', [], 'privacy:metadata:local_cgt_snapshot');
+        $collection->add_user_preference(
+            \local_caregivertraining\local\activation::PENDING,
+            'privacy:metadata:preference:activationpending'
+        );
         return $collection;
+    }
+
+    /**
+     * Export the learner's waiting setup email flag.
+     *
+     * @param int $userid
+     */
+    public static function export_user_preferences(int $userid) {
+        if (get_user_preferences(\local_caregivertraining\local\activation::PENDING, 0, $userid)) {
+            writer::export_user_preference(
+                'local_caregivertraining',
+                \local_caregivertraining\local\activation::PENDING,
+                1,
+                get_string('privacy:metadata:preference:activationpending', 'local_caregivertraining')
+            );
+        }
     }
 
     /**

@@ -312,4 +312,22 @@ final class completion_test extends \advanced_testcase {
             'alayacareid' => $this->learner->alayacareid, 'employmentstatus' => 'terminated', 'enrolmentstatus' => 'suspended']);
         $this->assertSame(0, notifier::queue_due_notifications($duestart - 3 * DAYSECS));
     }
+
+    public function test_a_late_cycle_gets_only_the_latest_reminder(): void {
+        global $DB;
+        set_config('reminderoffsets', '30,14,7', 'local_caregivertraining');
+        $cycle = cycle_manager::get('C-1');
+        $duestart = cycle_manager::start_of_day($cycle->anniversarydate);
+        $created = $duestart - 20 * DAYSECS;
+        $DB->set_field('local_cgt_cycle', 'timecreated', $created, ['id' => $cycle->id]);
+
+        // Created after the 30-day reminder's moment: just "Now Open", no reminder.
+        $this->assertSame(1, notifier::queue_due_notifications($created + HOURSECS));
+        $this->assertFalse($DB->record_exists('local_cgt_notification', ['cycleid' => $cycle->id, 'type' => 'reminder']));
+
+        // Cron missed both the 14- and 7-day moments: one reminder, the 7-day one.
+        $this->assertSame(1, notifier::queue_due_notifications($duestart - 5 * DAYSECS));
+        $where = "cycleid = ? AND type = 'reminder'";
+        $this->assertSame(['d7'], $DB->get_fieldset_select('local_cgt_notification', 'occurrence', $where, [$cycle->id]));
+    }
 }

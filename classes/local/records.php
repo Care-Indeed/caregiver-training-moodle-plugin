@@ -88,4 +88,45 @@ class records {
         $key = $cycle->status === 'blocked' ? 'blocked' : cycle_manager::compliance($cycle);
         return \html_writer::span(s(cycle_manager::status_label($cycle)), 'badge ' . self::BADGES[$key]);
     }
+
+    /**
+     * The cycle's course total grade, e.g. "92.50 / 100.00". A past cycle uses the grades kept in its evidence (at
+     * completion, else before the next year's reset), because the reset clears the gradebook; a current cycle uses
+     * the gradebook.
+     *
+     * @param \stdClass $cycle local_cgt_cycle record
+     * @param \stdClass[] $snapshots local_cgt_snapshot records; those of other cycles are ignored
+     * @return string empty when there is no grade
+     */
+    public static function course_total(\stdClass $cycle, array $snapshots): string {
+        global $DB;
+        $kept = [];
+        foreach ($snapshots as $snapshot) {
+            // A "preexisting" snapshot holds evidence from before this cycle, so it isn't this cycle's grade.
+            if ((int) $snapshot->cycleid === (int) $cycle->id && in_array($snapshot->type, ['completion', 'prereset'], true)) {
+                $kept[$snapshot->type] = $snapshot;
+            }
+        }
+        $grade = null;
+        if ($snapshot = $kept['completion'] ?? $kept['prereset'] ?? null) {
+            foreach (json_decode($snapshot->payload, true)['data']['grades'] ?? [] as $row) {
+                if ($row['itemtype'] === 'course') {
+                    $grade = [$row['finalgrade'], $row['grademax']];
+                }
+            }
+        } else if (in_array($cycle->status, cycle_manager::ACTIVE_STATUSES, true)) {
+            $row = $DB->get_record_sql(
+                "SELECT gg.finalgrade, gi.grademax
+                   FROM {grade_items} gi
+                   JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = :userid
+                  WHERE gi.courseid = :courseid AND gi.itemtype = 'course'",
+                ['userid' => $cycle->userid, 'courseid' => $cycle->courseid]
+            );
+            $grade = $row ? [$row->finalgrade, $row->grademax] : null;
+        }
+        if (!$grade || $grade[0] === null) {
+            return '';
+        }
+        return format_float((float) $grade[0], 2) . ' / ' . format_float((float) $grade[1], 2);
+    }
 }
