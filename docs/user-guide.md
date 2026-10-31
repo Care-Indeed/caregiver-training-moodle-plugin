@@ -325,9 +325,9 @@ Before the yearly reset, 2027-01-20 (verified)". Each download is logged.
 
 | Email | When | Button | Default |
 | --- | --- | --- | --- |
-| Account setup | When the adapter creates a caregiver account and asks for an activation email. | Set Your Password | Sent when requested, unless the learner has already logged in |
+| Account setup | When the caregiver's training opens, if the adapter asked for it when creating the account; straight away if the training is already open. | Set Your Password | Sent when requested, unless the learner has already logged in |
 | Training is open | When the cycle opens, 60 days before the due date. | Continue Training | On |
-| Reminder | The configured number of days before the due date, for example 30 and 14. | Continue Training | Off (no days set) |
+| Reminder | The configured number of days before the due date, for example 30 and 14. A cycle created after a reminder's day skips it, and if several are missed only the latest is sent. | Continue Training | Off (no days set) |
 | Due today | On the due date. | Continue Training | Off |
 | Overdue | Once after the due date, if not complete. | Continue Training | Off |
 | Completed | When the cycle completes, with the certificate PDF attached. | View Certificate | On |
@@ -345,7 +345,8 @@ platform support email. The phone number can be tapped to call and the addresses
 under **Notifications → Email footer**; the Quick Start Guide line only appears once its link is set.
 
 Moodle's own course welcome email ("you are enrolled in the course …") comes from the course's manual enrolment
-settings, not from this plugin. To turn it off, go to the course's **Participants → Enrolment methods**, edit
+settings, not from this plugin. It is sent when the caregiver is enrolled, which happens when their training opens, so it
+arrives with the account setup and "Now Open" emails. To turn it off, go to the course's **Participants → Enrolment methods**, edit
 **Manual enrolments**, and set **Send course welcome message** to No.
 
 ### Placeholders
