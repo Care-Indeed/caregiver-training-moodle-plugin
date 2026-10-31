@@ -76,9 +76,6 @@ final class cycle_test extends \advanced_testcase {
         $this->assertSame(cycle_manager::end_of_day('2027-06-15'), $cycle['timedue']);
         $this->assertSame(cycle_manager::end_of_day('2027-06-29'), $cycle['timeaccessend']);
         $this->assertSame('scheduled', $cycle['status']);
-        $ue = $this->enrolment((int) $a->user->id);
-        $this->assertEquals($cycle['timeopen'], $ue->timestart);
-        $this->assertEquals($cycle['timeaccessend'], $ue->timeend);
     }
 
     public function test_date_boundaries_in_compliance_timezone(): void {
@@ -139,9 +136,7 @@ final class cycle_test extends \advanced_testcase {
         $result = $this->cycle($a, 'A-1', 65);
         $this->assertSame('scheduled', $result['cycle']['status']);
         $context = \context_course::instance($this->fixture->course->id);
-        $this->assertFalse(is_enrolled($context, $a->user->id, '', true));
-        $ue = $this->enrolment((int) $a->user->id);
-        $this->assertEquals($result['cycle']['timeopen'], $ue->timestart);
+        $this->assertFalse(is_enrolled($context, $a->user->id, '', false), 'not enrolled until the training opens');
         $this->assertSame(0, cycle_manager::start_due_cycles());
         $this->assertSame('scheduled', cycle_manager::get('A-1')->status);
         $this->assertNull(local\time_tracker::open_cycle((int) $a->user->id));
@@ -264,6 +259,19 @@ final class cycle_test extends \advanced_testcase {
         $this->assertTrue(is_enrolled($context, $a->user->id, '', true));
         $this->assertTrue(user_has_role_assignment($a->user->id, config::role_id(), $context->id));
         $this->assertEquals(cycle_manager::get('A-1')->timeaccessend, $this->enrolment((int) $a->user->id)->timeend);
+
+        // A learner whose training opens later gets the welcome message when it opens, not when the cycle is created.
+        $b = $this->gen->create_learner();
+        $sink->clear();
+        $this->cycle($b, 'B-1', 90);
+        $this->assertCount(0, $sink->get_messages());
+        $DB->set_field('local_cgt_cycle', 'timeopen', time() - 60, ['cycleid' => 'B-1']);
+        $this->assertSame(1, cycle_manager::start_due_cycles());
+        $welcomes = array_filter($sink->get_messages(), fn($m) => $m->eventtype === 'enrolcoursewelcomemessage');
+        $this->assertCount(1, $welcomes);
+        $ue = $this->enrolment((int) $b->user->id);
+        $this->assertEqualsWithDelta(time() - 60, $ue->timestart, 5);
+        $this->assertEquals(cycle_manager::get('B-1')->timeaccessend, $ue->timeend);
     }
 
     /**

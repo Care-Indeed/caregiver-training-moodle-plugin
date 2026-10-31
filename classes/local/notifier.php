@@ -73,13 +73,19 @@ class notifier {
                 $queued += (int) self::queue($cycle, 'windowopen', 'once');
             }
             $duestart = cycle_manager::start_of_day($cycle->anniversarydate);
+            // Only the latest reminder whose moment has arrived before the due date, and only if that moment came after
+            // the training opened and the cycle was created, so a cycle created close to its due date doesn't get
+            // several reminders at once, or one straight after "Now Open".
+            $latest = null;
             foreach (config::reminder_offsets() as $days) {
                 $at = (new \DateTimeImmutable('@' . $duestart))->setTimezone(config::timezone())
                     ->modify("-{$days} days")->getTimestamp();
-                // Only send reminders whose moment has arrived and that still precede the due date.
-                if ($now >= $at && $now < $duestart && $at >= $cycle->timeopen) {
-                    $queued += (int) self::queue($cycle, 'reminder', 'd' . $days);
+                if ($now >= $at && $now < $duestart && (!$latest || $at > $latest['at'])) {
+                    $latest = ['days' => $days, 'at' => $at];
                 }
+            }
+            if ($latest && $latest['at'] >= max((int) $cycle->timeopen, (int) $cycle->timecreated)) {
+                $queued += (int) self::queue($cycle, 'reminder', 'd' . $latest['days']);
             }
             if (config::notification_enabled('due') && $now >= $duestart && $now <= $cycle->timedue) {
                 $queued += (int) self::queue($cycle, 'due', 'once');
